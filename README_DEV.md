@@ -60,16 +60,42 @@ Start the **Development** container:
 docker-compose -f docker/docker-compose.dev.yml up --build
 ```
 
-## How it Works
+## Workflow
 
-*   **Sync**: The `sync_to_pi.sh` script watches your Mac folder and pushes changes to the Pi every 2 seconds.
-*   **Hot Reload**: The `docker-compose.dev.yml` file mounts the source code directory into the container.
-*   **Flask Debug**: The `FLASK_DEBUG=1` environment variable tells the Python server to restart whenever it sees a file change.
+### 1. Start the Sync (Mac)
+Open a terminal in your project folder and run:
+```bash
+./dev_tools/sync_to_pi.sh
+```
+This script watches for changes and copies them to the Pi every 2 seconds. **Keep this terminal open.**
 
-## Editing
+### 2. Build Frontend (Mac)
+**Important:** If you make changes to the frontend code (`frontend/src`), you must rebuild it locally for changes to appear on the Pi:
+```bash
+cd frontend
+yarn build
+```
+The sync script will automatically copy the new build to the Pi.
 
-1.  Edit files on your Mac using your preferred editor.
-2.  Save the file.
-3.  The sync script pushes it to the Pi.
-4.  The Docker container sees the change and reloads the server.
-5.  Refresh your browser to see the changes.
+### 3. Start the Server (Pi)
+On the Pi, run the development server:
+```bash
+ssh pi@sandtable "cd ~/sand_skynet && docker compose -f docker/docker-compose.dev.yml up --build"
+```
+This starts the server in "hot reload" mode.
+
+## FAQ
+
+### 1. Is Docker still being used?
+**Yes**, but it runs in the background. You don't need to "manage" it much. It's just the engine that runs the server on the Pi. You'll use the `docker compose` command above to start/stop the server.
+
+### 2. Are code changes automatically updated?
+*   **Backend (Python):** **Yes!** If you change a Python file on your Mac, it syncs to the Pi, and the server restarts automatically.
+*   **Frontend (React/Website):** **No, not automatically.** You must run `yarn build` on your Mac. The *result* of that build will then automatically sync to the Pi.
+
+### 3. Should I still commit to git?
+**Yes, absolutely!**
+*   **Git** is your "Save Game" and history. It keeps your code safe and lets you go back if you mess up.
+*   **The Sync Script** is just a "live link" for testing. It doesn't save history.
+*   **Workflow:** Code -> Test (via sync) -> Happy? -> **Commit to Git**.
+
