@@ -17,25 +17,22 @@ echo "Press Ctrl+C to stop."
 # Ensure we are in the project root
 cd "$(dirname "$0")/.."
 
-while true; do
-    # Sync using rsync
-    # -a: archive mode
-    # -v: verbose
-    # -z: compress
-    # --delete: delete extraneous files from dest dirs
-    rsync -avz --delete \
-        --exclude 'frontend/node_modules' \
-        --exclude '.git' \
-        --exclude '.idea' \
-        --exclude '.vscode' \
-        --exclude '__pycache__' \
-        --exclude '*.pyc' \
-        --exclude 'env' \
-        --exclude '.venv' \
-        --exclude 'docker/database' \
-        --exclude 'server/database/db' \
-        ./ ${PI_USER}@${PI_HOST}:${REMOTE_DIR}
+# Sync using rsync
+# -a: archive mode
+# -v: verbose
+# -z: compress
+# --delete: delete extraneous files from dest dirs
+rsync -avz --delete \
+    --exclude 'frontend/node_modules' \
+    --exclude '.git' \
+    --exclude '.idea' \
+    --exclude '.vscode' \
+    --exclude '__pycache__' \
+    --exclude '*.pyc' \
+    --exclude 'env' \
+    --exclude '.venv' \
+    --exclude 'docker/database' \
+    --exclude 'server/database/db' \
+    ./ ${PI_USER}@${PI_HOST}:${REMOTE_DIR}
 
-    echo -e "${GREEN}Sync complete. Waiting 2 seconds...${NC}"
-    sleep 2
-done
+echo -e "${GREEN}Sync complete.${NC}"

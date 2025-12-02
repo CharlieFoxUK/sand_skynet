@@ -62,20 +62,20 @@ docker-compose -f docker/docker-compose.dev.yml up --build
 
 ## Workflow
 
-### 1. Start the Sync (Mac)
-Open a terminal in your project folder and run:
+### 1. Sync Changes (Mac)
+When you have made changes and want to test them, run:
 ```bash
 ./dev_tools/sync_to_pi.sh
 ```
-This script watches for changes and copies them to the Pi every 2 seconds. **Keep this terminal open.**
+This will copy your current files to the Pi. **Run this every time you want to update the Pi.**
 
 ### 2. Build Frontend (Mac)
-**Important:** If you make changes to the frontend code (`frontend/src`), you must rebuild it locally for changes to appear on the Pi:
+**Important:** If you make changes to the frontend code (`frontend/src`), you must rebuild it locally *before* syncing:
 ```bash
 cd frontend
 yarn build
 ```
-The sync script will automatically copy the new build to the Pi.
+Then run the sync script.
 
 ### 3. Start the Server (Pi)
 On the Pi, run the development server:
@@ -90,12 +90,12 @@ This starts the server in "hot reload" mode.
 **Yes**, but it runs in the background. You don't need to "manage" it much. It's just the engine that runs the server on the Pi. You'll use the `docker compose` command above to start/stop the server.
 
 ### 2. Are code changes automatically updated?
-*   **Backend (Python):** **Yes!** If you change a Python file on your Mac, it syncs to the Pi, and the server restarts automatically.
-*   **Frontend (React/Website):** **No, not automatically.** You must run `yarn build` on your Mac. The *result* of that build will then automatically sync to the Pi.
+*   **Backend (Python):** **Yes, once synced.** If you change a Python file on your Mac and run the sync script, the server on the Pi will restart automatically.
+*   **Frontend (React/Website):** **No.** You must run `yarn build` on your Mac, then run the sync script.
 
 ### 3. Should I still commit to git?
 **Yes, absolutely!**
 *   **Git** is your "Save Game" and history. It keeps your code safe and lets you go back if you mess up.
 *   **The Sync Script** is just a "live link" for testing. It doesn't save history.
-*   **Workflow:** Code -> Test (via sync) -> Happy? -> **Commit to Git**.
+*   **Workflow:** Code -> Build (if frontend) -> Sync -> Test -> Happy? -> **Commit to Git**.
 
