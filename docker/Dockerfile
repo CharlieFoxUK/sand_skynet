@@ -3,7 +3,7 @@
 # IMPORTANT! before building this image it is important to use "python dev_tools/update_frontend_version_hash.py". Check the build.md file
 
 # building frontend
-FROM node:16.13.0-alpine AS step1
+FROM node:20-alpine AS step1
 
 COPY frontend/yarn.lock frontend/package.json ./
 RUN yarn install --network-timeout=100000
@@ -11,6 +11,7 @@ RUN yarn install --network-timeout=100000
 COPY frontend/public /public
 COPY frontend/src /src
 COPY frontend/.env ./
+ENV NODE_OPTIONS=--openssl-legacy-provider
 RUN yarn build
 
 # ------------------------

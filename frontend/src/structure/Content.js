@@ -1,10 +1,10 @@
 import './Content.scss';
 
-import React, { Component} from 'react';
+import React, { Component } from 'react';
 import { connect } from 'react-redux';
-import {Tabs, Tab} from 'react-bootstrap';
+import { Tabs, Tab } from 'react-bootstrap';
 
-import Home from './tabs/Home.js'; 
+import Home from './tabs/Home.js';
 import Drawings from './tabs/drawings/Drawings';
 import Playlists from './tabs/playlists/Playlists';
 import ManualControl from './tabs/manual/ManualControl';
@@ -17,6 +17,7 @@ import DrawingDataDownloader from '../components/DrawingDataDownloader';
 import PlaylistDataDownloader from '../components/PlaylistDataDownloader';
 import SinglePlaylist from './tabs/playlists/SinglePlaylist/SinglePlaylist';
 import LedsController from './tabs/leds/Leds';
+import Canvas from './tabs/canvas/Canvas';
 
 const mapStateToProps = (state) => {
     return {
@@ -24,19 +25,19 @@ const mapStateToProps = (state) => {
     }
 }
 
-class Content extends Component{
-    
-    render(){
+class Content extends Component {
+
+    render() {
         return <div className="max-width m-auto text-light pt-3 pb-5 mh100">
             <DrawingDataDownloader />
             <PlaylistDataDownloader />
-            
+
             <Tabs id="content_tabs" className="hide-nav" activeKey={this.props.tab}>
                 <Tab eventKey="home" title="Home">
-                    <Home/>
+                    <Home />
                 </Tab>
                 <Tab eventKey="drawings" title="Drawings">
-                    <Drawings/>
+                    <Drawings />
                 </Tab>
                 <Tab eventKey="playlists" title="Playlists">
                     <Playlists />
@@ -58,6 +59,9 @@ class Content extends Component{
                 </Tab>
                 <Tab eventKey="leds" title="LEDs">
                     <LedsController />
+                </Tab>
+                <Tab eventKey="canvas" title="Canvas">
+                    <Canvas />
                 </Tab>
             </Tabs>
         </div>

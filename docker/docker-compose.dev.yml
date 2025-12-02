@@ -1,0 +1,45 @@
+version: "3.9"
+services:
+  sandypi:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - DOCKER_COMPOSE_FILE_VERSION=1
+    entrypoint: [ "bash", "docker/start_server.sh" ]
+    volumes:
+      - ../:/sandypi
+      - ../frontend/build:/sandypi/frontend/build
+      - database:/sandypi/server/database/db
+      - static:/sandypi/server/static
+      - saves:/sandypi/server/saves
+      - autodetect:/sandypi/server/autodetect
+      - logs:/sandypi/server/logs
+      - /dev:/dev
+      - /run/systemd/system:/run/systemd/system
+      - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket
+      - /sbin/shutdown:/sbin/shutdown
+      - /sbin/reboot:/sbin/reboot
+    ports:
+      - 5100:5000
+    privileged: true
+
+volumes:
+  database:
+    name: database
+    driver: local
+  static:
+    name: static
+    driver: local
+  saves:
+    name: saves
+    driver: local
+  autodetect:
+    name: autodetect
+    driver: local
+  logs:
+    name: logs
+    driver: local
