@@ -1,4 +1,4 @@
-import React, {Component} from 'react';
+import React, { Component } from 'react';
 import { Container, Form, Col, Button, Row } from 'react-bootstrap';
 import { PlusSquare, Save, Trash } from 'react-bootstrap-icons';
 import { connect } from 'react-redux';
@@ -14,6 +14,7 @@ import { settingsSave } from '../../../sockets/sEmits';
 import { cloneDict } from '../../../utils/dictUtils';
 import SettingField from './SettingField';
 import SoftwareVersion from './SoftwareVersion';
+import Visualizer from './Visualizer';
 
 const mapStateToProps = (state) => {
     return {
@@ -24,38 +25,38 @@ const mapStateToProps = (state) => {
 const mapDispatchToProps = (dispatch) => {
     return {
         updateAllSettings: (settings) => dispatch(updateAllSettings(settings)),
-        updateSetting:          (val) => dispatch(updateSetting(val)),
-        createNewHWButton:         () => dispatch(createNewHWButton()),
-        removeHWButton:         (idx) => dispatch(removeHWButton(idx))
+        updateSetting: (val) => dispatch(updateSetting(val)),
+        createNewHWButton: () => dispatch(createNewHWButton()),
+        removeHWButton: (idx) => dispatch(removeHWButton(idx))
     }
 }
 
-class Settings extends Component{
+class Settings extends Component {
 
-    componentDidMount(){
+    componentDidMount() {
         settingsNow((data) => {
             this.props.updateAllSettings(JSON.parse(data));
         });
     }
 
-    saveForm(connect=false){
+    saveForm(connect = false) {
         let sets = cloneDict(this.props.settings); // cloning the dict before deleting data
         settingsSave(sets, connect);
     }
 
-    mapEntries(entries){
+    mapEntries(entries) {
         if (entries !== undefined)
-            return entries.map((singleSetting, key) => { 
+            return entries.map((singleSetting, key) => {
                 return <SettingField
                     key={key}
                     singleSetting={singleSetting[1]}
                     settings={this.props.settings}
-                    onUpdateSetting={this.props.updateSetting.bind(this)}/>
+                    onUpdateSetting={this.props.updateSetting.bind(this)} />
             });
         else return "";
     }
 
-    generateHWSettings(){
+    generateHWSettings() {
         if (!this.props.settings.buttons.available) // TODO include LEDS in this check
             return "";
         else return <Subsection sectionTitle="Additional hardware">
@@ -64,13 +65,13 @@ class Settings extends Component{
         </Subsection>
     }
 
-    generateHWButtonsForm(){
+    generateHWButtonsForm() {
         if (!this.props.settings.buttons.available)  // if the buttons are not available with the current hw will just hide the option
             return "";
         let rows = this.props.settings.buttons.buttons.map((button_option, i) => {
             let b = cloneDict(button_option);
             let idx = b.idx;
-            let tmp = this.props.settings.buttons.available_values.filter(i => {return i.label === b.click.value});
+            let tmp = this.props.settings.buttons.available_values.filter(i => { return i.label === b.click.value });
             if (tmp.length > 0)
                 b.click.tip = tmp[0].description;
             return <Form.Row key={idx} className="mb-5">
@@ -78,24 +79,24 @@ class Settings extends Component{
                     singleSetting={b.pin}
                     settings={this.props.settings}
                     onUpdateSetting={this.props.updateSetting.bind(this)}
-                    key={"bp_"+idx}/>
+                    key={"bp_" + idx} />
                 <SettingField
                     singleSetting={b.click}
                     settings={this.props.settings}
                     onUpdateSetting={this.props.updateSetting.bind(this)}
-                    key={"bc_"+idx}/>
+                    key={"bc_" + idx} />
                 <SettingField
                     singleSetting={b.press}
                     settings={this.props.settings}
                     onUpdateSetting={this.props.updateSetting.bind(this)}
-                    key={"br_"+idx}/>
+                    key={"br_" + idx} />
                 <SettingField
                     singleSetting={b.pull}
                     settings={this.props.settings}
                     onUpdateSetting={this.props.updateSetting.bind(this)}
-                    key={"bl_"+idx}/>
+                    key={"bl_" + idx} />
                 <Col sm={4} className="mt-4 w-100 pt-1">
-                    <IconButton 
+                    <IconButton
                         className="w-100 mt-1 center"
                         icon={Trash}
                         onClick={() => this.props.removeHWButton(idx)}>
@@ -106,8 +107,8 @@ class Settings extends Component{
         });
         return <SectionGroup sectionTitle="Buttons">
             <p>
-                In this section it is possible to specify which functionality should be associated to any HW button wired in the table. 
-                Add as many buttons as needed, specify the GPIO input pin (BCM index) and select the associated function from the dropdown menu. 
+                In this section it is possible to specify which functionality should be associated to any HW button wired in the table.
+                Add as many buttons as needed, specify the GPIO input pin (BCM index) and select the associated function from the dropdown menu.
                 For every button two actions are available: click and long press.
                 Each action can be choosen independently.</p>
             <Container>
@@ -123,9 +124,9 @@ class Settings extends Component{
         </SectionGroup>;
     }
 
-    generateHWLEDs(){
-        if (this.props.settings.leds.available){
-            let ledsEntries =      Object.entries(this.props.settings.leds);
+    generateHWLEDs() {
+        if (this.props.settings.leds.available) {
+            let ledsEntries = Object.entries(this.props.settings.leds);
             return <SectionGroup sectionTitle="LEDs">
                 <Container>
                     <Form.Row>
@@ -133,14 +134,14 @@ class Settings extends Component{
                     </Form.Row>
                 </Container>
             </SectionGroup>
-        }else return "";
+        } else return "";
     }
 
     // render the list of settings divided by sections
-    render(){
-        let serialEntries =    Object.entries(this.props.settings.serial);
-        let deviceEntries =    Object.entries(this.props.settings.device);
-        let scriptEntries =    Object.entries(this.props.settings.scripts);
+    render() {
+        let serialEntries = Object.entries(this.props.settings.serial);
+        let deviceEntries = Object.entries(this.props.settings.device);
+        let scriptEntries = Object.entries(this.props.settings.scripts);
         let autostartEntries = Object.entries(this.props.settings.autostart);
 
         return <Container>
@@ -165,6 +166,7 @@ class Settings extends Component{
                                 <Form.Row>
                                     {this.mapEntries(deviceEntries)}
                                 </Form.Row>
+                                <Visualizer settings={this.props.settings} />
                             </Container>
                         </SectionGroup>
                     </Subsection>
@@ -188,7 +190,7 @@ class Settings extends Component{
                 </Section>
                 <SectionGroup sectionTitle="Software info">
                     <Container>
-                        <SoftwareVersion/>
+                        <SoftwareVersion />
                     </Container>
                 </SectionGroup>
                 <Row className="pr-3 pl-2 mb-5">
@@ -197,7 +199,7 @@ class Settings extends Component{
                             className="w-100 center"
                             icon={Save}
                             onClick={() => this.saveForm()}>
-                                Save settings
+                            Save settings
                         </IconButton>
                     </Col>
                 </Row>

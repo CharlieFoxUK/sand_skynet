@@ -99,3 +99,12 @@ This starts the server in "hot reload" mode.
 *   **The Sync Script** is just a "live link" for testing. It doesn't save history.
 *   **Workflow:** Code -> Build (if frontend) -> Sync -> Test -> Happy? -> **Commit to Git**.
 
+### 4. Modifying Settings (Important!)
+The settings labels and defaults are controlled by the **Backend**, not the Frontend.
+*   **Source of Truth:** `server/saves/default_settings.json`
+*   **Do NOT edit:** `frontend/src/structure/tabs/settings/defaultSettings.js` (this is overwritten by the server).
+
+**To change a setting label or default:**
+1.  Edit `server/saves/default_settings.json`.
+2.  Sync the file to the Pi.
+3.  Restart the server on the Pi (`docker compose -f docker/docker-compose.dev.yml restart`).

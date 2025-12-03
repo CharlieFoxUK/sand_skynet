@@ -68,24 +68,96 @@ const defaultSettings = {
 		width: {
 			name: "device.width",
 			type: "input",
-			value: 100,
-			label: "Device width",
+			value: 500,
+			label: "Drawing Width (X Axis)",
 			depends_on: "device.type",
 			depends_values: [
 				"Cartesian"
 			],
-			tip: "Maximum X extension"
+			tip: "Safe drawing area width"
 		},
 		height: {
 			name: "device.height",
 			type: "input",
-			value: 100,
-			label: "Device height",
+			value: 510,
+			label: "Drawing Height (Y Axis)",
 			depends_on: "device.type",
 			depends_values: [
 				"Cartesian"
 			],
-			tip: "Maximum Y extension"
+			tip: "Safe drawing area height"
+		},
+		physical_width: {
+			name: "device.physical_width",
+			type: "input",
+			value: 514,
+			label: "Physical Width (Max X)",
+			depends_on: "device.type",
+			depends_values: [
+				"Cartesian"
+			],
+			tip: "Total physical width of the table"
+		},
+		physical_height: {
+			name: "device.physical_height",
+			type: "input",
+			value: 620,
+			label: "Physical Height (Max Y)",
+			depends_on: "device.type",
+			depends_values: [
+				"Cartesian"
+			],
+			tip: "Total physical height of the table"
+		},
+		offset_x: {
+			name: "device.offset_x",
+			type: "input",
+			value: 0,
+			label: "X Offset",
+			depends_on: "device.type",
+			depends_values: [
+				"Cartesian"
+			],
+			tip: "Distance from physical 0 to drawing area 0"
+		},
+		offset_y: {
+			name: "device.offset_y",
+			type: "input",
+			value: 50,
+			label: "Y Offset",
+			depends_on: "device.type",
+			depends_values: [
+				"Cartesian"
+			],
+			tip: "Distance from physical 0 to drawing area 0"
+		},
+		orientation_origin: {
+			name: "device.orientation_origin",
+			type: "select",
+			value: "Bottom-Left",
+			label: "Canvas Top-Left Corner",
+			available_values: [
+				"Bottom-Left",
+				"Top-Left",
+				"Top-Right",
+				"Bottom-Right"
+			],
+			depends_on: "device.type",
+			depends_values: [
+				"Cartesian"
+			],
+			tip: "Which corner of the table corresponds to the top-left of the screen"
+		},
+		orientation_swap: {
+			name: "device.orientation_swap",
+			type: "check",
+			value: false,
+			label: "Swap X/Y Axes",
+			depends_on: "device.type",
+			depends_values: [
+				"Cartesian"
+			],
+			tip: "Swap X and Y axes"
 		},
 		radius: {
 			name: "device.radius",

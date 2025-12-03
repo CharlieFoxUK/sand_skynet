@@ -391,7 +391,72 @@ class Feeder():
         self.logger.info("Starting new drawing with code {}".format(element))
         
         # TODO retrieve saved information for the gcode filter
-        dims = {"table_x":100, "table_y":100, "drawing_max_x":100, "drawing_max_y":100, "drawing_min_x":0, "drawing_min_y":0}
+        # Retrieve settings for scaling and orientation
+        try:
+            width = float(self.settings['device']['width']['value'])
+            height = float(self.settings['device']['height']['value'])
+            offset_x = float(self.settings['device']['offset_x']['value'])
+            offset_y = float(self.settings['device']['offset_y']['value'])
+            
+            # Handle potential missing keys for new settings
+            orientation_origin = self.settings['device'].get('orientation_origin', {}).get('value', 'Bottom-Left')
+            orientation_swap = self.settings['device'].get('orientation_swap', {}).get('value', False)
+        except Exception as e:
+            self.logger.error(f"Error reading settings for scaling: {e}. Using defaults.")
+            width = 100
+            height = 100
+            offset_x = 0
+            offset_y = 0
+            orientation_origin = 'Bottom-Left'
+            orientation_swap = False
+
+        # Default bounds (assume normalized 0-1 if unknown)
+        d_min_x, d_max_x = 0, 1.0
+        d_min_y, d_max_y = 0, 1.0
+
+        # Try to get actual drawing dimensions to decide on scaling strategy
+        if isinstance(element, DrawingElement):
+            try:
+                # We need to import UploadedFiles here to avoid circular imports if possible, 
+                # or rely on the element having this info. 
+                # DrawingElement loads drawing_infos in execute(), but we are in _thf (before execute loop).
+                # Let's peek at the DB.
+                from server.database.models import UploadedFiles
+                drawing_infos = UploadedFiles.get_drawing(element.drawing_id)
+                if drawing_infos and drawing_infos.dimensions_info:
+                    import json
+                    dims_info = json.loads(drawing_infos.dimensions_info)
+                    xmin = dims_info.get("xmin", 0)
+                    xmax = dims_info.get("xmax", 1)
+                    ymin = dims_info.get("ymin", 0)
+                    ymax = dims_info.get("ymax", 1)
+                    
+                    # Heuristic: If dimensions are large (> 2), assume Absolute MM -> 1:1 Scale
+                    # If dimensions are small (<= 2), assume Normalized -> Stretch to Fill
+                    if (xmax - xmin > 2) or (ymax - ymin > 2) or (xmax > 2) or (ymax > 2):
+                        # Absolute MM: Set input bounds to Table Size (0 to width)
+                        # This ensures 1:1 mapping (e.g. input 250 -> norm 0.5 -> output 250)
+                        d_min_x, d_max_x = 0, width
+                        d_min_y, d_max_y = 0, height
+                    else:
+                        # Normalized: Set input bounds to actual bounds (Stretch to fill)
+                        d_min_x, d_max_x = xmin, xmax
+                        d_min_y, d_max_y = ymin, ymax
+            except Exception as e:
+                self.logger.error(f"Error determining drawing bounds: {e}")
+
+        dims = {
+            "table_x": width, 
+            "table_y": height, 
+            "drawing_max_x": d_max_x,
+            "drawing_max_y": d_max_y, 
+            "drawing_min_x": d_min_x, 
+            "drawing_min_y": d_min_y,
+            "offset_x": offset_x,
+            "offset_y": offset_y,
+            "orientation_origin": orientation_origin,
+            "orientation_swap": orientation_swap
+        }
         
         filter = Fit(dims)
         
@@ -402,6 +467,9 @@ class Feeder():
             if line is None:                                        # if the line is none there is no command to send, will continue with the next element execution (for example, within the delay element it will sleep 1s at a time and return None until the timeout passed. TODO Not really an efficient way, may change it in the future)
                 continue
 
+            # Apply filter/scaling
+            line = filter.parse_line(line)
+
             line = line.upper()
 
             self.send_gcode_command(line)
@@ -411,10 +479,8 @@ class Feeder():
                 # if a "stop" command is raised must exit the pause and stop the drawing
                 if not self.is_running():
                     break
-
-            # TODO parse line to scale/add padding to the drawing according to the drawing settings (in order to keep the original .gcode file)
-            #line = filter.parse_line(line)
-            #line = "N{} ".format(file_line) + line
+            
+            # line = "N{} ".format(file_line) + line
         with self.status_mutex:
             self._stopped = True
         

@@ -5,7 +5,9 @@
             "type": "select",
             "value": "FAKE",
             "label": "Serial port",
-            "available_values": ["FAKE"],
+            "available_values": [
+                "FAKE"
+            ],
             "tip": "Select the serial port"
         },
         "baud": {
@@ -13,7 +15,19 @@
             "type": "select",
             "value": "115200",
             "label": "Serial baudrate",
-            "available_values": ["2400", "4800", "9600", "19200", "38400", "57600", "115200", "230400", "250000", "460800", "921600"],
+            "available_values": [
+                "2400",
+                "4800",
+                "9600",
+                "19200",
+                "38400",
+                "57600",
+                "115200",
+                "230400",
+                "250000",
+                "460800",
+                "921600"
+            ],
             "tip": "Select the correct serial baudrate"
         },
         "fast_mode": {
@@ -48,23 +62,99 @@
             "label": "Select device type",
             "tip": "Select the type of mechanism used by the device"
         },
-        "width":{
+        "width": {
             "name": "device.width",
             "type": "input",
-            "value": 100,
-            "label": "Device width",
+            "value": 500,
+            "label": "Drawing Width (X Axis)",
             "depends_on": "device.type",
-            "depends_values": ["Cartesian"],
-            "tip": "Maximum X extension"
+            "depends_values": [
+                "Cartesian"
+            ],
+            "tip": "Safe drawing area width"
         },
-        "height":{
+        "height": {
             "name": "device.height",
             "type": "input",
-            "value": 100,
-            "label": "Device height",
+            "value": 510,
+            "label": "Drawing Height (Y Axis)",
             "depends_on": "device.type",
-            "depends_values": ["Cartesian"],
-            "tip": "Maximum Y extension"
+            "depends_values": [
+                "Cartesian"
+            ],
+            "tip": "Safe drawing area height"
+        },
+        "physical_width": {
+            "name": "device.physical_width",
+            "type": "input",
+            "value": 514,
+            "label": "Physical Width (Max X)",
+            "depends_on": "device.type",
+            "depends_values": [
+                "Cartesian"
+            ],
+            "tip": "Total physical width of the table"
+        },
+        "physical_height": {
+            "name": "device.physical_height",
+            "type": "input",
+            "value": 620,
+            "label": "Physical Height (Max Y)",
+            "depends_on": "device.type",
+            "depends_values": [
+                "Cartesian"
+            ],
+            "tip": "Total physical height of the table"
+        },
+        "offset_x": {
+            "name": "device.offset_x",
+            "type": "input",
+            "value": 0,
+            "label": "X Offset",
+            "depends_on": "device.type",
+            "depends_values": [
+                "Cartesian"
+            ],
+            "tip": "Distance from physical 0 to drawing area 0"
+        },
+        "offset_y": {
+            "name": "device.offset_y",
+            "type": "input",
+            "value": 50,
+            "label": "Y Offset",
+            "depends_on": "device.type",
+            "depends_values": [
+                "Cartesian"
+            ],
+            "tip": "Distance from physical 0 to drawing area 0"
+        },
+        "orientation_origin": {
+            "name": "device.orientation_origin",
+            "type": "select",
+            "value": "Bottom-Left",
+            "label": "Canvas Top-Left Corner",
+            "available_values": [
+                "Bottom-Left",
+                "Top-Left",
+                "Top-Right",
+                "Bottom-Right"
+            ],
+            "depends_on": "device.type",
+            "depends_values": [
+                "Cartesian"
+            ],
+            "tip": "Which corner of the table corresponds to the top-left of the screen"
+        },
+        "orientation_swap": {
+            "name": "device.orientation_swap",
+            "type": "check",
+            "value": false,
+            "label": "Swap X/Y Axes",
+            "depends_on": "device.type",
+            "depends_values": [
+                "Cartesian"
+            ],
+            "tip": "Swap X and Y axes"
         },
         "radius": {
             "name": "device.radius",
@@ -72,7 +162,10 @@
             "value": 200,
             "label": "Device radius",
             "depends_on": "device.type",
-            "depends_values": ["Polar", "Scara"],
+            "depends_values": [
+                "Polar",
+                "Scara"
+            ],
             "tip": "Device maximum radius"
         },
         "angle_conversion_factor": {
@@ -81,7 +174,10 @@
             "value": 6,
             "label": "Angle conversion factor",
             "depends_on": "device.type",
-            "depends_values": ["Polar", "Scara"],
+            "depends_values": [
+                "Polar",
+                "Scara"
+            ],
             "tip": "The value that makes the arm to turn one full turn"
         },
         "offset_angle_1": {
@@ -90,7 +186,10 @@
             "value": -1.5,
             "label": "Insert angular position homing offset",
             "depends_on": "device.type",
-            "depends_values": ["Polar", "Scara"],
+            "depends_values": [
+                "Polar",
+                "Scara"
+            ],
             "tip": "Angle for the home position of the arm (uses the values from the conversion factor, not rad: if angle_conversion_factor is 6 and must shift the homing by half turn must put 1.5"
         },
         "offset_angle_2": {
@@ -99,7 +198,9 @@
             "value": 1.5,
             "label": "Insert second arm homing position offset",
             "depends_on": "device.type",
-            "depends_values": ["Scara"],
+            "depends_values": [
+                "Scara"
+            ],
             "tip": "Angle for the home position of the second arm (uses the values from the conversion factor, not rad: if angle_conversion_factor is 6 and must shift the homing by half turn must put 1.5"
         }
     },
