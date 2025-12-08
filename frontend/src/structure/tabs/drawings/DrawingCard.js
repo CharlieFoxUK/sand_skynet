@@ -12,24 +12,36 @@ import { showSingleDrawing } from '../Tabs.slice';
 import Image from '../../../components/Image';
 import DrawingCardMenu from './DrawingCardMenu';
 
-const mapDispatchToProps = (dispatch) => {
-    return { showSingleDrawing: (id) => dispatch(showSingleDrawing(id))}
+import { getSettings } from '../settings/selector';
+
+const mapStateToProps = (state) => {
+    return {
+        settings: getSettings(state)
+    }
 }
 
-class DrawingCard extends Component{
+const mapDispatchToProps = (dispatch) => {
+    return { showSingleDrawing: (id) => dispatch(showSingleDrawing(id)) }
+}
 
-    render(){
+class DrawingCard extends Component {
+
+    render() {
         if (this.props.drawing === undefined || this.props.drawing === null)
             return "";
         const highlight = this.props.highlight ? " card-highlight" : "";
+
+        const device = this.props.settings.device || {};
+        const rotation = parseInt(device.canvas_rotation ? device.canvas_rotation.value : 0) || 0;
 
         return <DrawingCardMenu onStartDrawing={(id) => drawingQueue(id)} drawing={this.props.drawing}>
             <Card className="p-2 hover-zoom" onClick={() => this.props.showSingleDrawing(this.props.drawing.id)}>
 
                 <div className={"border-0 bg-black rounded text-dark clickable center p-0"}>
                     <Image className={"card-img-top rounded" + highlight}
-                        src={getImgUrl(this.props.drawing.id)} 
-                        alt="Drawing image"/>
+                        style={{ transform: `rotate(${-rotation}deg)`, transition: 'transform 0.3s ease' }}
+                        src={getImgUrl(this.props.drawing.id)}
+                        alt="Drawing image" />
                     <div className="card-img-overlay h-100 d-flex flex-column justify-content-end p-2">
                         <div className="card-text text-center text-primary p-1 glass rounded-bottom">
                             {this.props.drawing.filename}
@@ -41,4 +53,4 @@ class DrawingCard extends Component{
     }
 }
 
-export default connect(null, mapDispatchToProps)(DrawingCard);
+export default connect(mapStateToProps, mapDispatchToProps)(DrawingCard);

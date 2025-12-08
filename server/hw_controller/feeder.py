@@ -445,6 +445,22 @@ class Feeder():
             except Exception as e:
                 self.logger.error(f"Error determining drawing bounds: {e}")
 
+        
+        # Check for PRE-TRANSFORMED header
+        # We need to peek at the first line.
+        generator = self.get_element().execute(self.logger)
+        try:
+            first_line = next(generator)
+        except StopIteration:
+            return # Empty file
+
+        if "; TYPE: PRE-TRANSFORMED" in first_line:
+            self.logger.info("Detected PRE-TRANSFORMED G-code. Disabling orientation logic.")
+            orientation_origin = "Bottom-Left"
+            orientation_swap = False
+            offset_x = 0
+            offset_y = 0
+        
         dims = {
             "table_x": width, 
             "table_y": height, 
@@ -460,27 +476,70 @@ class Feeder():
         
         filter = Fit(dims)
         
-        for k, line in enumerate(self.get_element().execute(self.logger)):     # execute the element (iterate over the commands or do what the element is designed for)
-            if not self.is_running():
-                break
+        # Process first line
+        lines_to_process = [first_line]
+        
+        # Helper to process lines
+        def process_line(line):
+            if line is None: return
             
-            if line is None:                                        # if the line is none there is no command to send, will continue with the next element execution (for example, within the delay element it will sleep 1s at a time and return None until the timeout passed. TODO Not really an efficient way, may change it in the future)
-                continue
+            # Strip comments and whitespace
+            line = line.strip()
+            if not line: return
+            
+            # Skip comments and headers
+            if line.startswith(";") or line.startswith("(") or line.startswith("%"):
+                # Check for inline PRE-TRANSFORMED tag if it wasn't the first line (edge case)
+                # But we already checked first_line.
+                # Just skip.
+                return
+
+            # Remove inline comments
+            if ";" in line:
+                line = line.split(";")[0].strip()
+            if "(" in line:
+                line = line.split("(")[0].strip()
+            
+            if not line: return
 
             # Apply filter/scaling
-            line = filter.parse_line(line)
+            # If PRE-TRANSFORMED, filter logic is disabled via offsets/orientation settings above
+            # But Fit.parse_line still runs. 
+            # If we want PURE raw, we should bypass filter.parse_line if pre-transformed?
+            # The current logic sets offsets to 0 and orientation to default.
+            # Fit.parse_line does: rotate -> scale -> offset.
+            # If scale is 1:1 (d_min/max set to table size), and offsets 0, it should be identity.
+            # However, to be safe and "EXACTLY what is sent", let's bypass if pre-transformed.
+            
+            if "; TYPE: PRE-TRANSFORMED" in first_line: # We can check the flag we detected earlier
+                 # Actually we don't have the flag variable here, but we can check the settings we modified?
+                 # Or just re-check first_line or set a flag.
+                 # Let's use a flag.
+                 pass
 
-            line = line.upper()
-
-            self.send_gcode_command(line)
-
+            # Better: Modify Fit class? No, keep it local.
+            # We detected it earlier. Let's use a flag.
+            is_pre_transformed = "; TYPE: PRE-TRANSFORMED" in first_line
+            
+            if is_pre_transformed:
+                # Send raw line
+                self.send_gcode_command(line.upper())
+            else:
+                line = filter.parse_line(line)
+                line = line.upper()
+                self.send_gcode_command(line)
+            
             while self.is_paused():
                 time.sleep(0.1)
-                # if a "stop" command is raised must exit the pause and stop the drawing
                 if not self.is_running():
-                    break
-            
-            # line = "N{} ".format(file_line) + line
+                    return
+
+        process_line(first_line)
+
+        for k, line in enumerate(generator):     # execute the element (iterate over the commands or do what the element is designed for)
+            if not self.is_running():
+                break
+            process_line(line)
         with self.status_mutex:
             self._stopped = True
         

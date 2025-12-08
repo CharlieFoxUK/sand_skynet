@@ -134,6 +134,13 @@ class ImageFactory:
             d_min_x, d_max_x = xmin if xmin != 100000 else 0, xmax if xmax != -100000 else 1
             d_min_y, d_max_y = ymin if ymin != 100000 else 0, ymax if ymax != -100000 else 1
 
+        # Check for PRE-TRANSFORMED tag
+        is_pre_transformed = False
+        for line in lines:
+            if "TYPE: PRE-TRANSFORMED" in line:
+                is_pre_transformed = True
+                break
+
         dims = {
             "table_x": self.width,
             "table_y": self.height,
@@ -146,6 +153,13 @@ class ImageFactory:
             "orientation_origin": self.orientation_origin,
             "orientation_swap": self.orientation_swap
         }
+
+        if is_pre_transformed:
+            if self.verbose:
+                print("Detected PRE-TRANSFORMED G-code. Disabling orientation mapping.")
+            dims["orientation_origin"] = "Bottom-Left"
+            dims["orientation_swap"] = False
+
         
         fit = Fit(dims)
         

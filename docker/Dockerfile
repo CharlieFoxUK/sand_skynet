@@ -26,6 +26,7 @@ WORKDIR /sandypi
 # for some reason I'm not able to build this with the slim version of the image because the apt-get install is failing (connection issues to the packages sites)
 # as a workaround will use the non-slim version of the image -> will get a larger image on the registry
 #RUN apt-get update && apt-get install python3-dev gcc libc-dev -y
+RUN apt-get update && apt-get install -y bluez
 ENV FLASK_ENV=production VIRTUAL_ENV=/env PATH="$VIRTUAL_ENV/bin:$PATH" IS_DOCKER=true CFLAGS=-fcommon
 RUN python -m pip install virtualenv wheel
 RUN python -m venv ${VIRTUAL_ENV}

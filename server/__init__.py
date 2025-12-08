@@ -82,6 +82,10 @@ migrate = Migrate(app, db, include_object=migrations.include_object)
 # After setting up the database it is possible to import the app components
 try:
     import server.api.drawings
+    import server.api.leds
+    import server.api.system
+    from server.api.calibration import calibration
+    app.register_blueprint(calibration)
     from server.sockets_interface.socketio_emits import SocketioEmits
     import server.sockets_interface.socketio_callbacks
     from server.hw_controller.queue_manager import QueueManager

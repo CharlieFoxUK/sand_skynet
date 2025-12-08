@@ -16,7 +16,9 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
   # Sandypi service
   sandypi:
-    image: texx00/sandypi:latest
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
     restart: unless-stopped
     environment:
       # this is the version of this docker compose file. If this file is changed/updated, watchtower is not able to pull it from the web.
@@ -30,18 +32,17 @@ services:
       - saves:/sandypi/server/saves
       - autodetect:/sandypi/server/autodetect
       - logs:/sandypi/server/logs
-      - /dev:/dev                               # this is necessary to access the usb drive to control the device
+      - /dev:/dev # this is necessary to access the usb drive to control the device
       - /run/systemd/system:/run/systemd/system # necessary to shutdown/reboot the device
       - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket # necessary to shutdown/reboot the device
-      - /sbin/shutdown:/sbin/shutdown           # necessary to shutdown the device
-      - /sbin/reboot:/sbin/reboot               # necessary to reboot the device
+      - /sbin/shutdown:/sbin/shutdown # necessary to shutdown the device
+      - /sbin/reboot:/sbin/reboot # necessary to reboot the device
     ports:
-     - 5100:5000
+      - 5100:5000
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
       - "com.centurylinklabs.watchtower.lifecycle.pre-update=/sandypi/check_pre_update.sh"
-    privileged: 
-      true                                      # necessary to access the serial device
+    privileged: true # necessary to access the serial device
 
 volumes:
   database:

@@ -8,6 +8,7 @@ from server.hw_controller.leds.leds_types.dimmable import Dimmable
 from server.hw_controller.leds.leds_types.RGB_neopixels import RGBNeopixels
 from server.hw_controller.leds.leds_types.RGBW_neopixels import RGBWNeopixels
 from server.hw_controller.leds.leds_types.WWA_neopixels import WWANeopixels
+from server.hw_controller.leds.leds_types.SP107E import SP107E
 from server.hw_controller.leds.light_sensors.tsl2591 import TSL2591
 
 class LedsController:
@@ -22,6 +23,7 @@ class LedsController:
         self._color = (0,0,0,0)
         self._brightness = 0
         self._just_turned_on = True
+        self.mac_address = None
         self.update_settings(settings_utils.load_settings())
         self.reset_lights()
 
@@ -32,6 +34,24 @@ class LedsController:
         if not self.sensor is None:
             return self.sensor.is_connected()
         return False
+
+    def get_status(self):
+        status = {
+            "available": self.is_available(),
+            "type": self.leds_type,
+            "connected": False
+        }
+        if self.driver and hasattr(self.driver, "is_connected"):
+            status["connected"] = self.driver.is_connected()
+        elif self.driver:
+            # For other drivers (GPIO), assume connected if initialized
+            status["connected"] = True
+        return status
+
+    def reconnect(self):
+        self.app.logger.info("LedsController: Force reconnecting...")
+        # Force re-initialization of the driver
+        self.update_settings(settings_utils.load_settings())
 
     def start(self):
         if not self.driver is None:
@@ -57,6 +77,16 @@ class LedsController:
     def fill(self, color):
         if not self.driver is None:
             self.driver.fill(color)
+
+    def send_command(self, cmd_hex):
+        if not self.driver is None and hasattr(self.driver, "send_command"):
+            try:
+                cmd_bytes = bytearray.fromhex(cmd_hex)
+                self.driver.send_command(cmd_bytes)
+                return True
+            except Exception as e:
+                self.app.logger.error(f"Error sending command: {e}")
+        return False
 
     def reset_lights(self):
         if not self.driver is None:
@@ -126,9 +156,10 @@ class LedsController:
             self.dimensions = dims
             self.leds_type = None
             self.pin = None
-        if (self.leds_type != settings.leds.type) or (self.pin != settings.leds.pin1):
+        if (self.leds_type != settings.leds.type) or (self.pin != settings.leds.pin1) or (self.mac_address != settings.leds.get("mac_address", "")):
             self.pin = settings.leds.pin1
             self.leds_type = settings.leds.type
+            self.mac_address = settings.leds.get("mac_address", "")
             try:
                 # the leds number calculation depends on the type of table. 
                 # If is square or rectangular should use a base and height, for round tables will use the total number of leds directly
@@ -140,8 +171,15 @@ class LedsController:
                     leds_class = RGBWNeopixels
                 elif self.leds_type == "WWA":
                     leds_class = WWANeopixels
+                elif self.leds_type == "SP107E":
+                    leds_class = SP107E
                 
-                self.driver = leds_class(leds_number, settings.leds.pin1, logger=self.app.logger)
+                if self.leds_type == "SP107E":
+                    # SP107E uses mac_address instead of pin
+                    mac_address = settings.leds.get("mac_address", "")
+                    self.driver = leds_class(mac_address, logger=self.app.logger)
+                else:
+                    self.driver = leds_class(leds_number, settings.leds.pin1, logger=self.app.logger)
             except Exception as e: 
                 self.driver = None
                 self.app.semits.show_toast_on_UI("Led driver type not compatible with current HW")

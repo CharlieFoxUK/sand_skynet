@@ -37,6 +37,8 @@ class Settings extends Component {
         settingsNow((data) => {
             this.props.updateAllSettings(JSON.parse(data));
         });
+        this.checkStatus();
+        this.statusInterval = setInterval(() => this.checkStatus(), 5000);
     }
 
     saveForm(connect = false) {
@@ -47,6 +49,7 @@ class Settings extends Component {
     mapEntries(entries) {
         if (entries !== undefined)
             return entries.map((singleSetting, key) => {
+                if (singleSetting[1].hide) return null;
                 return <SettingField
                     key={key}
                     singleSetting={singleSetting[1]}
@@ -124,13 +127,87 @@ class Settings extends Component {
         </SectionGroup>;
     }
 
+    scanLeds() {
+        window.showToast("Scanning for BLE devices...");
+        fetch('/api/leds/scan')
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    window.showToast("Scan failed: " + data.error);
+                } else {
+                    // Find device named "SandTable" or "SP107E"
+                    let device = data.find(d => d.name === "SandTable" || d.name === "SP107E");
+                    if (device) {
+                        window.showToast(`Found ${device.name} (${device.address})`);
+                        this.props.updateSetting(["leds.mac_address", device.address]);
+                    } else {
+                        // Show list of found devices
+                        let msg = "Devices found:\n" + data.map(d => `${d.name}: ${d.address}`).join("\n");
+                        window.showToast(msg);
+                        // If only one device found, maybe auto-select? No, risky.
+                        if (data.length > 0) {
+                            // For now just show toast. User can copy-paste if needed, or we can improve UI.
+                            // But user said "The LED controller is called SandTable".
+                            // So if we didn't find it, maybe the name is different.
+                        } else {
+                            window.showToast("No devices found.");
+                        }
+                    }
+                }
+            })
+            .catch(error => {
+                window.showToast("Scan error: " + error);
+            });
+    }
+    reconnectLeds() {
+        window.showToast("Reconnecting...");
+        fetch('/api/leds/reconnect', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) window.showToast("Reconnect failed: " + data.error);
+                else window.showToast("Reconnection triggered");
+            })
+            .catch(err => window.showToast("Reconnect error: " + err));
+    }
+
+    componentWillUnmount() {
+        if (this.statusInterval) clearInterval(this.statusInterval);
+    }
+
+    checkStatus() {
+        if (this.props.settings.leds.type.value === "SP107E") {
+            fetch('/api/leds/status')
+                .then(response => response.json())
+                .then(data => {
+                    this.setState({ ledStatus: data });
+                })
+                .catch(err => console.error(err));
+        }
+    }
+
     generateHWLEDs() {
         if (this.props.settings.leds.available) {
             let ledsEntries = Object.entries(this.props.settings.leds);
+            let statusBadge = "";
+            if (this.props.settings.leds.type.value === "SP107E" && this.state && this.state.ledStatus) {
+                const color = this.state.ledStatus.connected ? "success" : "danger";
+                const text = this.state.ledStatus.connected ? "Connected" : "Disconnected";
+                statusBadge = <span className={`badge badge-${color} ml-2`}>{text}</span>;
+            }
+
             return <SectionGroup sectionTitle="LEDs">
                 <Container>
                     <Form.Row>
                         {this.mapEntries(ledsEntries)}
+                        {this.props.settings.leds.type.value === "SP107E" && (
+                            <Col>
+                                <div className="d-flex align-items-center mt-2">
+                                    <Button className="flex-grow-1" onClick={() => this.scanLeds()}>Scan</Button>
+                                    <Button variant="warning" className="ml-2" onClick={() => this.reconnectLeds()}>Reconnect</Button>
+                                    {statusBadge}
+                                </div>
+                            </Col>
+                        )}
                     </Form.Row>
                 </Container>
             </SectionGroup>
@@ -164,9 +241,27 @@ class Settings extends Component {
                         <SectionGroup sectionTitle="Device type">
                             <Container>
                                 <Form.Row>
-                                    {this.mapEntries(deviceEntries)}
+                                    {this.mapEntries(deviceEntries.filter(e => e[0] !== 'orientation_origin' && e[0] !== 'orientation_swap'))}
                                 </Form.Row>
                                 <Visualizer settings={this.props.settings} />
+                                <Form.Row className="center mt-2">
+                                    <Button variant="info" onClick={() => {
+                                        window.showToast("Sending calibration pattern...");
+                                        fetch('/api/calibration/draw_boundaries', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify(this.props.settings)
+                                        })
+                                            .then(r => r.json())
+                                            .then(d => {
+                                                if (d.error) window.showToast("Error: " + d.error);
+                                                else window.showToast("Pattern sent!");
+                                            })
+                                            .catch(e => window.showToast("Error: " + e));
+                                    }}>
+                                        Draw Boundaries & Calibrate
+                                    </Button>
+                                </Form.Row>
                             </Container>
                         </SectionGroup>
                     </Subsection>

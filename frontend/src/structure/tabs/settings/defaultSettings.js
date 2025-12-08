@@ -134,7 +134,7 @@ const defaultSettings = {
 		orientation_origin: {
 			name: "device.orientation_origin",
 			type: "select",
-			value: "Bottom-Left",
+			value: "Top-Left",
 			label: "Canvas Top-Left Corner",
 			available_values: [
 				"Bottom-Left",
@@ -146,18 +146,32 @@ const defaultSettings = {
 			depends_values: [
 				"Cartesian"
 			],
-			tip: "Which corner of the table corresponds to the top-left of the screen"
+			tip: "Which corner of the table corresponds to the top-left of the screen",
+			hide: true
 		},
 		orientation_swap: {
 			name: "device.orientation_swap",
 			type: "check",
-			value: false,
+			value: true,
 			label: "Swap X/Y Axes",
 			depends_on: "device.type",
 			depends_values: [
 				"Cartesian"
 			],
-			tip: "Swap X and Y axes"
+			tip: "Swap X and Y axes",
+			hide: true
+		},
+		canvas_rotation: {
+			name: "device.canvas_rotation",
+			type: "int",
+			value: 0,
+			label: "Canvas Rotation",
+			depends_on: "device.type",
+			depends_values: [
+				"Cartesian"
+			],
+			tip: "Rotation of the canvas (0, 90, 180, 270)",
+			hide: true
 		},
 		radius: {
 			name: "device.radius",
@@ -292,7 +306,8 @@ const defaultSettings = {
 				"RGB",
 				"RGBW",
 				"Dimmable",
-				"WWA"
+				"WWA",
+				"SP107E"
 			],
 			label: "Select a led type",
 			tip: "RGB and RGBW LEDs are compatible with WS2812B compatible drivers. The 'Dimmable' option is suitable for single color strips."
@@ -303,6 +318,17 @@ const defaultSettings = {
 			value: 18,
 			label: "Pin number",
 			tip: "Uses the BCM pin number"
+		},
+		mac_address: {
+			name: "leds.mac_address",
+			type: "input",
+			value: "",
+			label: "MAC Address",
+			tip: "Bluetooth MAC address for SP107E (e.g., XX:XX:XX:XX:XX:XX)",
+			depends_on: "leds.type",
+			depends_values: [
+				"SP107E"
+			]
 		},
 		available: {
 			value: false,
