@@ -73,6 +73,11 @@ class DrawingElement(GenericPlaylistElement):
 
         with open(filename) as f:
             for line in f:
+                # Check for special tag before stripping
+                if "; TYPE: PRE-TRANSFORMED" in line:
+                    yield line
+                    continue
+
                 # clears the line
                 if line.startswith(";"):                                                            # skips commented lines
                     continue

@@ -460,6 +460,8 @@ class Feeder():
             orientation_swap = False
             offset_x = 0
             offset_y = 0
+        else:
+            self.logger.info(f"Did NOT detect PRE-TRANSFORMED tag in first line: '{first_line}'")
         
         dims = {
             "table_x": width, 
@@ -489,9 +491,6 @@ class Feeder():
             
             # Skip comments and headers
             if line.startswith(";") or line.startswith("(") or line.startswith("%"):
-                # Check for inline PRE-TRANSFORMED tag if it wasn't the first line (edge case)
-                # But we already checked first_line.
-                # Just skip.
                 return
 
             # Remove inline comments
@@ -502,32 +501,8 @@ class Feeder():
             
             if not line: return
 
-            # Apply filter/scaling
-            # If PRE-TRANSFORMED, filter logic is disabled via offsets/orientation settings above
-            # But Fit.parse_line still runs. 
-            # If we want PURE raw, we should bypass filter.parse_line if pre-transformed?
-            # The current logic sets offsets to 0 and orientation to default.
-            # Fit.parse_line does: rotate -> scale -> offset.
-            # If scale is 1:1 (d_min/max set to table size), and offsets 0, it should be identity.
-            # However, to be safe and "EXACTLY what is sent", let's bypass if pre-transformed.
-            
-            if "; TYPE: PRE-TRANSFORMED" in first_line: # We can check the flag we detected earlier
-                 # Actually we don't have the flag variable here, but we can check the settings we modified?
-                 # Or just re-check first_line or set a flag.
-                 # Let's use a flag.
-                 pass
-
-            # Better: Modify Fit class? No, keep it local.
-            # We detected it earlier. Let's use a flag.
-            is_pre_transformed = "; TYPE: PRE-TRANSFORMED" in first_line
-            
-            if is_pre_transformed:
-                # Send raw line
-                self.send_gcode_command(line.upper())
-            else:
-                line = filter.parse_line(line)
-                line = line.upper()
-                self.send_gcode_command(line)
+            # Send raw line
+            self.send_gcode_command(line.upper())
             
             while self.is_paused():
                 time.sleep(0.1)
