@@ -105,7 +105,7 @@ class SingleDrawing extends Component {
                 <div className="center mb-5">
                     {(() => {
                         const device = this.props.settings.device || {};
-                        const rotation = parseInt(device.canvas_rotation ? device.canvas_rotation.value : 0) || 0;
+                        const rotation = parseInt(device.thumbnail_rotation ? device.thumbnail_rotation.value : 0) || 0;
                         return <Image className="modal-drawing-preview"
                             style={{ transform: `rotate(${-rotation}deg)`, transition: 'transform 0.3s ease' }}
                             src={getImgUrl(this.props.drawing.id)} alt="Drawing image" />;

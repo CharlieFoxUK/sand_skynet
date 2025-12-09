@@ -32,7 +32,7 @@ class DrawingCard extends Component {
         const highlight = this.props.highlight ? " card-highlight" : "";
 
         const device = this.props.settings.device || {};
-        const rotation = parseInt(device.canvas_rotation ? device.canvas_rotation.value : 0) || 0;
+        const rotation = parseInt(device.thumbnail_rotation ? device.thumbnail_rotation.value : 0) || 0;
 
         return <DrawingCardMenu onStartDrawing={(id) => drawingQueue(id)} drawing={this.props.drawing}>
             <Card className="p-2 hover-zoom" onClick={() => this.props.showSingleDrawing(this.props.drawing.id)}>

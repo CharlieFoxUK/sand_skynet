@@ -160,15 +160,17 @@
         },
         "canvas_rotation": {
             "name": "device.canvas_rotation",
-            "type": "int",
+            "type": "number",
             "value": 0,
             "label": "Canvas Rotation",
-            "depends_on": "device.type",
-            "depends_values": [
-                "Cartesian"
-            ],
-            "tip": "Rotation of the canvas (0, 90, 180, 270)",
-            "hide": true
+            "tip": "Rotation of the canvas in degrees (0, 90, 180, 270)"
+        },
+        "thumbnail_rotation": {
+            "name": "device.thumbnail_rotation",
+            "type": "number",
+            "value": 0,
+            "label": "Thumbnail Rotation",
+            "tip": "Rotation of the thumbnails in degrees (0, 90, 180, 270)"
         },
         "radius": {
             "name": "device.radius",
