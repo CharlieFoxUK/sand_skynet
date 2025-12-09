@@ -65,7 +65,7 @@ class LedsController extends Component {
     }
 
     checkStatus() {
-        if (this.props.settings.leds.type.value === "SP107E") {
+        if (this.props.settings && this.props.settings.leds && this.props.settings.leds.type.value === "SP107E") {
             fetch('/api/leds/status')
                 .then(response => response.json())
                 .then(data => {
@@ -110,6 +110,8 @@ class LedsController extends Component {
     }
 
     render() {
+        if (!this.props.settings || !this.props.settings.leds) return <Container>Loading settings...</Container>;
+
         let statusBadge = "";
         let reconnectBtn = "";
         if (this.props.settings.leds.type.value === "SP107E" && this.state && this.state.ledStatus) {

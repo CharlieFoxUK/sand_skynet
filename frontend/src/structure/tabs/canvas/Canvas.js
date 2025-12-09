@@ -166,18 +166,19 @@ class Canvas extends Component {
                 let xPhysNorm, yPhysNorm;
 
                 // Apply Rotation Logic
+                // Apply Rotation Logic
                 switch (rotation) {
                     case 90:
-                        xPhysNorm = 1 - yNorm;
-                        yPhysNorm = 1 - xNorm;
+                        xPhysNorm = yNorm;
+                        yPhysNorm = xNorm;
                         break;
                     case 180:
                         xPhysNorm = 1 - xNorm;
                         yPhysNorm = yNorm;
                         break;
                     case 270:
-                        xPhysNorm = yNorm;
-                        yPhysNorm = xNorm;
+                        xPhysNorm = 1 - yNorm;
+                        yPhysNorm = 1 - xNorm;
                         break;
                     case 0:
                     default:
