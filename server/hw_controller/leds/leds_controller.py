@@ -90,8 +90,24 @@ class LedsController:
 
     def reset_lights(self):
         if not self.driver is None:
-            self.set_brightness(0)
-            self.driver.fill_white()
+            # Load startup settings
+            startup_brightness = 0
+            startup_color = "#FFFFFF"
+            
+            if hasattr(self, 'settings') and self.settings:
+                try:
+                    if 'leds' in self.settings:
+                        if 'startup_brightness' in self.settings['leds']:
+                            startup_brightness = float(self.settings['leds']['startup_brightness']['value'])
+                        if 'startup_color' in self.settings['leds']:
+                            startup_color = self.settings['leds']['startup_color']['value']
+                except Exception as e:
+                    self.app.logger.error(f"Error loading startup LED settings: {e}")
+
+            # Apply startup settings
+            self.set_color(startup_color)
+            self.set_brightness(startup_brightness)
+            
         self._just_turned_on = True
     
     def _thf(self):
@@ -123,6 +139,18 @@ class LedsController:
         with self._mutex:
             self._color = (r, g, b, w)
             self._should_update = True
+        
+        # Save color to settings
+        if hasattr(self, 'settings') and self.settings:
+            try:
+                if 'leds' in self.settings:
+                    if 'startup_color' not in self.settings['leds']:
+                         self.settings['leds']['startup_color'] = {}
+                    self.settings['leds']['startup_color']['value'] = color
+                    settings_utils.save_settings(self.settings)
+            except Exception as e:
+                self.app.logger.error(f"Error saving LED color: {e}")
+
         if self._just_turned_on:
             self.app.logger.info("Turning on brightness")
             self.set_brightness(1)
@@ -131,6 +159,17 @@ class LedsController:
         self._just_turned_on = False
         if not self.driver is None:
             self.driver.set_brightness(brightness)
+        
+        # Save brightness to settings
+        if hasattr(self, 'settings') and self.settings:
+            try:
+                if 'leds' in self.settings:
+                    if 'startup_brightness' not in self.settings['leds']:
+                         self.settings['leds']['startup_brightness'] = {}
+                    self.settings['leds']['startup_brightness']['value'] = brightness
+                    settings_utils.save_settings(self.settings)
+            except Exception as e:
+                self.app.logger.error(f"Error saving LED brightness: {e}")
 
     def start_animation(self, animation):
         # TODO add animations picker:
@@ -145,6 +184,9 @@ class LedsController:
     # Updates dimensions of the led matrix
     # Updates the led driver object only if the dimensions are changed
     def update_settings(self, settings):
+        # Store raw settings for persistence
+        self.settings = settings
+        
         # TODO check if the settings are changed and restart the driver only in that case
         restart = False
         if self._running:

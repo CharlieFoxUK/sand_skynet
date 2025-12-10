@@ -40,23 +40,8 @@ class SP107E:
         if data[0] == 0x00:
             if not hasattr(self, "_auto_test_sent"):
                 self._auto_test_sent = True
-                if self._loop:
-                    # Wait 3.2s to match capture delta (3.25s)
-                    asyncio.run_coroutine_threadsafe(self._delayed_auto_test(), self._loop)
-
-    async def _delayed_auto_test(self):
-        if self.logger: self.logger.info("SP107E: Received 2nd notification. Waiting 3.2s before auto-test...")
-        await asyncio.sleep(3.2)
-        # Send Magenta (ff00ff0c) to match capture exactly
-        cmd = bytearray.fromhex("ff00ff0c")
-        if self.logger: self.logger.info(f"SP107E: Auto-sending Magenta Test ({cmd.hex()})")
-        
-        if self._client and self._client.is_connected:
-             try:
-                 await self._client.write_gatt_char(WRITE_CHARACTERISTIC_UUID, cmd, response=True)
-                 if self.logger: self.logger.info("SP107E: Auto-test sent successfully")
-             except Exception as e:
-                 if self.logger: self.logger.error(f"SP107E: Auto-test failed: {e}")
+                # Auto-test removed to respect saved settings
+                if self.logger: self.logger.info("SP107E: Received 2nd notification. Ready for commands.")
 
     def start(self):
         if self._running: return

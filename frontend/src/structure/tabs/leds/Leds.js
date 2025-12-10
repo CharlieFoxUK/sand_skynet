@@ -34,8 +34,12 @@ class LedsController extends Component {
     }
 
     renderColorPicker() {
+        const startup_color = this.props.settings.leds.startup_color ? this.props.settings.leds.startup_color.value : "#FFFFFF";
+        const startup_brightness = this.props.settings.leds.startup_brightness ? this.props.settings.leds.startup_brightness.value : 1.0;
+
         if (this.props.settings.leds.type.value === "Dimmable") {
             return <DimmableColorPicker
+                initialBrightness={startup_brightness}
                 onColorChange={this.changeColor.bind(this)} />
         } else {
             let PickerType = RGBWColorPicker
@@ -50,6 +54,8 @@ class LedsController extends Component {
             return <PickerType
                 useWhite={show_white_channel}
                 useAutoDim={show_auto_dim}
+                initialColor={startup_color}
+                initialBrightness={startup_brightness}
                 onAutoDimChange={(ad) => ledsAutoDim(ad)}
                 onColorChange={this.changeColor.bind(this)} />
         }

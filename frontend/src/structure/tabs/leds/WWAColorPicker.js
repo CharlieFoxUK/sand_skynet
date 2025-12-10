@@ -14,99 +14,104 @@ const AMBER = new Color("#ffc400");
 const WARM_WHITE = new Color("#f2ff00");
 const COLD_WHITE = new Color("#9fffff");
 
-class WWAColorPicker extends Component{
-    constructor(props){
+class WWAColorPicker extends Component {
+    constructor(props) {
         super(props);
         this.backgroundRef = React.createRef();
-        this.state={
-            color: "#ffc400",                                   // color converted to WWA values
-            brightness: 1,
+
+        const initialColor = props.initialColor || "#ffc400";
+        const initialBrightness = props.initialBrightness !== undefined ? props.initialBrightness : 1;
+
+        this.state = {
+            color: initialColor,                                   // color converted to WWA values
+            brightness: initialBrightness,
             original_color: {                                   // original rgb color from the picker
-                rgb: hexToRGB(DEFAULT_COLOR), 
-                hex: DEFAULT_COLOR,
-                hsl: {h:0}
+                rgb: hexToRGB(initialColor),
+                hex: initialColor,
+                hsl: { h: 0 } // TODO: Calculate HSL from initialColor if needed, but for now 0 is safe
             },
-            alpha_picker_color: "#ffc400ff",                    // color used by the alpha color picker
-            picker_color: DEFAULT_COLOR,                        // color used by the color picker
+            alpha_picker_color: initialColor + Math.round(initialBrightness * 255).toString(16).padStart(2, '0'),                    // color used by the alpha color picker
+            picker_color: initialColor,                        // color used by the color picker
             show_autodim: false
         }
         this.state_backup = {};
     }
-    
-    componentDidMount(){
+
+    componentDidMount() {
         this.updateBackground(this.state.color);
     }
 
     // this method returns the correct value for the hw.
     // cannot send the visualized rgb value since the hw is using a different encoding for the colors:
     // r -> (R -> amber, G -> cold white, B -> warm white)
-    getHWRGBColor(){
+    getHWRGBColor() {
         let h = this.state.original_color.hsl.h;
         let res = {
             a: this.state.brightness
         };
         // dividing into the two different mixings (A - WW and WW - CW)
-        if (h<180){                         // A - WW
-            res.r = 255*(180-h)/180;
-            res.b = 255*h/180;
+        if (h < 180) {                         // A - WW
+            res.r = 255 * (180 - h) / 180;
+            res.b = 255 * h / 180;
             res.g = 0;
-        }else{                              // WW - CW
+        } else {                              // WW - CW
             h -= 180;                       // brings back the h into the 180 range (easier to handle the formulas)
             res.r = 0;
-            res.b = 255*(180-h)/180;
-            res.g = 255*h/180;
+            res.b = 255 * (180 - h) / 180;
+            res.g = 255 * h / 180;
         }
         res = alphaToBrightness(res);       // adjusting brightness
         delete res.a;                       // removing alpha value (not needed by the hw controller)
         return RGBToHex(res);               // returning hex value
     }
 
-    updateColor(color, brightness){
+    updateColor(color, brightness) {
         let h = color.hsl.h;
         let ledColor = {};
         // mapping color depending on the h value of the bar
         let res;
-        if (h<180){ // first half of the picker mixes amber and warm white
-            res = AMBER.mix(WARM_WHITE, h/180);
-        }else{      // second half mixes warm white and cold white
-            res = WARM_WHITE.mix(COLD_WHITE, (h-180)/180);
+        if (h < 180) { // first half of the picker mixes amber and warm white
+            res = AMBER.mix(WARM_WHITE, h / 180);
+        } else {      // second half mixes warm white and cold white
+            res = WARM_WHITE.mix(COLD_WHITE, (h - 180) / 180);
         }
         // estracting the rgb value
-        ledColor.r = res.p3[0]*255;
-        ledColor.g = res.p3[1]*255;
-        ledColor.b = res.p3[2]*255;
+        ledColor.r = res.p3[0] * 255;
+        ledColor.g = res.p3[1] * 255;
+        ledColor.b = res.p3[2] * 255;
         ledColor.a = brightness;
         ledColor = alphaToBrightness(ledColor);
         delete ledColor.a;
         let alpha_color = ledColor;
         alpha_color.a = brightness;
-        this.setState({...this.state, 
-            brightness: brightness, 
+        this.setState({
+            ...this.state,
+            brightness: brightness,
             color: RGBToHex(ledColor),
             original_color: color,
             alpha_picker_color: RGBAToHex(alpha_color),
             picker_color: RGBAToHex(color.rgb)
         },
-        () => {
-            this.updateBackground();
-            this.props.onColorChange(this.getHWRGBColor());
-        });
+            () => {
+                this.updateBackground();
+                this.props.onColorChange(this.getHWRGBColor());
+            });
     }
 
-    handleColorChange(color){
+    handleColorChange(color) {
         this.updateColor(color, this.state.brightness);
     }
 
-    handleBrigtnessChange(color){
+    handleBrigtnessChange(color) {
         this.updateColor(this.state.original_color, color.rgb.a);
     }
 
-    updateBackground(){
+    updateBackground() {
         this.backgroundRef.current.style.backgroundColor = this.state.color;
     }
 
-    renderAutoDim(){
-        if (this.props.useAutoDim){
+    renderAutoDim() {
+        if (this.props.useAutoDim) {
             return <Col className="center m-4">
                 <FormGroup>
                     <Form.Check
@@ -114,17 +119,17 @@ class WWAColorPicker extends Component{
                         id="leds_autodim_control_checkbox"
                         type="switch"
                         onChange={(e) => {
-                            this.setState({...this.state, show_autodim: e.target.checked},
+                            this.setState({ ...this.state, show_autodim: e.target.checked },
                                 () => this.props.onAutoDimChange(e.target.checked))
                         }}
-                        checked={this.state.show_autodim}/>
+                        checked={this.state.show_autodim} />
                 </FormGroup>
             </Col>
         }
         else return "";
     }
 
-    render(){
+    render() {
         return <Container>
             <Row>
                 <Col>
@@ -132,13 +137,13 @@ class WWAColorPicker extends Component{
                 </Col>
             </Row>
             <Row>
-                <Col 
-                    className="center rounded p-5" 
+                <Col
+                    className="center rounded p-5"
                     ref={this.backgroundRef}>
-                    <HuePicker 
+                    <HuePicker
                         className="leds-color-picker leds-wwa"
-                        color={this.state.original_color.hex.substring(0,7)}
-                        onChange={(e) => { this.handleColorChange(e) }}/>
+                        color={this.state.original_color.hex.substring(0, 7)}
+                        onChange={(e) => { this.handleColorChange(e) }} />
                 </Col>
             </Row>
             <Row>
@@ -151,10 +156,10 @@ class WWAColorPicker extends Component{
             </Row>
             <Row>
                 <Col className="center">
-                    <AlphaPicker 
+                    <AlphaPicker
                         className="mt-2"
                         color={this.state.alpha_picker_color}
-                        onChange={this.handleBrigtnessChange.bind(this)}/>
+                        onChange={this.handleBrigtnessChange.bind(this)} />
                 </Col>
             </Row>
         </Container>

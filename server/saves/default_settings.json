@@ -350,6 +350,22 @@
             "depends_values": [
                 true
             ]
+        },
+        "startup_color": {
+            "name": "leds.startup_color",
+            "type": "text",
+            "value": "#FFFFFF",
+            "label": "Startup Color",
+            "tip": "Color to set on startup",
+            "hide": true
+        },
+        "startup_brightness": {
+            "name": "leds.startup_brightness",
+            "type": "number",
+            "value": 1.0,
+            "label": "Startup Brightness",
+            "tip": "Brightness to set on startup (0.0 - 1.0)",
+            "hide": true
         }
     },
     "buttons": {

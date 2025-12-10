@@ -10,11 +10,15 @@ class RGBWColorPicker extends Component {
     constructor(props) {
         super(props);
         this.backgroundRef = React.createRef();
+
+        const initialColor = props.initialColor || DEFAULT_COLOR;
+        const initialBrightness = props.initialBrightness !== undefined ? props.initialBrightness : 1;
+
         this.state = {
-            color: DEFAULT_COLOR,
-            brightness: 1,
-            original_color: hexToRGB(DEFAULT_COLOR),
-            components_color: DEFAULT_COLOR + "ff",
+            color: initialColor,
+            brightness: initialBrightness,
+            original_color: hexToRGB(initialColor),
+            components_color: initialColor + "ff",
             show_white: false,
             show_autodim: false
         }
