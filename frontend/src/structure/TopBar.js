@@ -112,6 +112,11 @@ class TopBar extends Component {
                             onClick={() => { this.props.handleTab("canvas") }}>
                             Canvas
                         </Nav.Link>
+                        <Nav.Link className={"h5" + (this.props.selectedTab === "sandify" ? " highlight-tab" : "")}
+                            key={6}
+                            onClick={() => { this.props.handleTab("sandify") }}>
+                            Sandify
+                        </Nav.Link>
                         {this.renderLEDsTab()}
                         {this.renderBack()}
                     </Nav>

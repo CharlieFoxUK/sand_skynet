@@ -136,6 +136,14 @@ def versioned_url_for(endpoint, **values):
 def home():
     return send_from_directory(app.static_folder, "index.html")
 
+@app.route('/sandify/')
+def sandify_index():
+    return send_from_directory(app.root_path + "/static/sandify", "index.html")
+
+@app.route('/sandify/<path:filename>')
+def sandify_static(filename):
+    return send_from_directory(app.root_path + "/static/sandify", filename)
+
 
 # Starting the feeder after the server is ready to avoid problems with the web page not showing up
 def run_post():
