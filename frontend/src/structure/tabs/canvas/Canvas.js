@@ -7,6 +7,7 @@ import { settingsSave } from '../../../sockets/sEmits';
 import { settingsNow } from '../../../sockets/sCallbacks';
 import { cloneDict } from '../../../utils/dictUtils';
 import { updateAllSettings, updateSetting } from '../settings/Settings.slice';
+import { calculateCanvasSize } from '../../../utils/canvasSize';
 
 const mapStateToProps = (state) => {
     return {
@@ -25,13 +26,15 @@ class Canvas extends Component {
     constructor(props) {
         super(props);
         this.canvasRef = React.createRef();
+        const initialSize = calculateCanvasSize({ footerHeight: 250 });
         this.state = {
             isDrawing: false,
             lastX: 0,
             lastY: 0,
             paths: [], // Store paths for GCode generation
             drawingName: "",
-            feedrate: 2000
+            feedrate: 2000,
+            displaySize: initialSize.width
         };
     }
 
@@ -41,9 +44,12 @@ class Canvas extends Component {
         this.ctx.lineCap = 'round';
         this.ctx.strokeStyle = 'black';
 
-        // Initial size, will be controlled by render logic
-        this.canvasRef.current.width = 500;
-        this.canvasRef.current.height = 500;
+        // Handle window resize
+        this.handleResize = () => {
+            const newSize = calculateCanvasSize({ footerHeight: 250 });
+            this.setState({ displaySize: newSize.width });
+        };
+        window.addEventListener('resize', this.handleResize);
 
         // Fetch latest settings from backend to ensure persistence
         settingsNow((data) => {
@@ -54,6 +60,10 @@ class Canvas extends Component {
                 console.error("Error parsing settings:", e);
             }
         });
+    }
+
+    componentWillUnmount() {
+        window.removeEventListener('resize', this.handleResize);
     }
 
     startDrawing = (e) => {
@@ -421,12 +431,15 @@ class Canvas extends Component {
                                 width={canvasWidth}
                                 height={canvasHeight}
                                 style={{
-                                    border: '1px solid white',
+                                    border: '3px solid #20c997',
+                                    borderRadius: '12px',
+                                    boxShadow: '0 0 30px rgba(32, 201, 151, 0.2), 0 8px 32px rgba(0, 0, 0, 0.4)',
                                     backgroundColor: 'white',
                                     touchAction: 'none',
                                     cursor: 'crosshair',
-                                    maxWidth: '100%',
-                                    height: 'auto'
+                                    width: this.state.displaySize,
+                                    height: this.state.displaySize,
+                                    maxWidth: '100%'
                                 }}
                                 onMouseDown={this.startDrawing}
                                 onMouseMove={this.draw}

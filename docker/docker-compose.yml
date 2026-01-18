@@ -26,7 +26,11 @@ services:
       # if the two versions are not matching will prompt the user with a message to let him know that a new docker-compose file is available and can be pulled manually
       # IMPORTANT: when this value is changed, need to change also the value in the dockerfile
       - DOCKER_COMPOSE_FILE_VERSION=1
+      - FLASK_DEBUG=1
+      - FLASK_ENV=development
     volumes:
+      - ../frontend/build:/sandypi/frontend/build
+      - ../server:/sandypi/server
       - database:/sandypi/server/database/db
       - static:/sandypi/server/static
       - saves:/sandypi/server/saves

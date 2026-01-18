@@ -1,0 +1,344 @@
+@import '../../../_colors.scss';
+
+.etch-a-sketch-container {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 80px);
+    position: relative;
+    padding: 0 10px;
+    padding-bottom: 220px;
+    /* Space for dials */
+    overflow-x: hidden;
+}
+
+.etch-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 10px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    backdrop-filter: blur(10px);
+
+    h4 {
+        color: $primary;
+        font-weight: bold;
+        margin: 0;
+        font-size: 1.2rem;
+    }
+}
+
+.etch-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+
+    .live-track-toggle {
+        margin-right: 5px;
+
+        .custom-control-input:checked~.custom-control-label::before {
+            background-color: $primary;
+            border-color: $primary;
+        }
+    }
+
+    button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        padding: 6px 12px;
+        min-width: 40px;
+    }
+}
+
+.etch-canvas-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    position: relative;
+    flex: 1;
+    padding: 5px;
+}
+
+.etch-canvas {
+    border: 3px solid $primary;
+    border-radius: 12px;
+    box-shadow:
+        0 0 40px rgba($primary, 0.2),
+        0 10px 40px rgba(0, 0, 0, 0.5),
+        inset 0 0 60px rgba(0, 0, 0, 0.3);
+    background: #0d0d0d;
+    touch-action: none;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+}
+
+.position-display {
+    position: absolute;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.9);
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    font-weight: bold;
+    color: $primary;
+    border: 1px solid rgba($primary, 0.4);
+    z-index: 10;
+    white-space: nowrap;
+}
+
+.gcode-count {
+    position: absolute;
+    bottom: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.9);
+    padding: 4px 14px;
+    border-radius: 15px;
+    font-size: 12px;
+    color: #888;
+    border: 1px solid #333;
+}
+
+.etch-dials {
+    position: fixed;
+    bottom: 25px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 25px;
+    pointer-events: none;
+    z-index: 100;
+}
+
+.dial-wrapper {
+    pointer-events: auto;
+    background: rgba(0, 0, 0, 0.95);
+    border-radius: 50%;
+    padding: 12px;
+    box-shadow:
+        0 6px 30px rgba(0, 0, 0, 0.7),
+        0 0 40px rgba($primary, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba($primary, 0.25);
+}
+
+.dial-left {
+    margin-left: 15px;
+}
+
+.dial-right {
+    margin-right: 15px;
+}
+
+/* Rotary Dial Styles */
+.rotary-dial {
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    position: relative;
+    transition: transform 0.12s ease;
+
+    &:active,
+    &.active {
+        cursor: grabbing;
+        transform: scale(1.06);
+    }
+
+    svg {
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+    }
+}
+
+.dial-label {
+    position: absolute;
+    bottom: -32px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 24px;
+    font-weight: bold;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
+    letter-spacing: 2px;
+}
+
+/* Live Indicator */
+.live-indicator {
+    position: fixed;
+    top: 75px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #dc3545, #c82333);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 13px;
+    box-shadow:
+        0 3px 12px rgba(220, 53, 69, 0.5),
+        0 0 25px rgba(220, 53, 69, 0.25);
+    z-index: 200;
+    animation: pulse 2s infinite;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.live-dot {
+    width: 10px;
+    height: 10px;
+    background: white;
+    border-radius: 50%;
+    animation: blink 1s infinite;
+    box-shadow: 0 0 8px white;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        box-shadow:
+            0 3px 12px rgba(220, 53, 69, 0.5),
+            0 0 25px rgba(220, 53, 69, 0.25);
+    }
+
+    50% {
+        box-shadow:
+            0 3px 20px rgba(220, 53, 69, 0.7),
+            0 0 40px rgba(220, 53, 69, 0.4);
+    }
+}
+
+@keyframes blink {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.3;
+        transform: scale(0.85);
+    }
+}
+
+/* Settings Modal Styling */
+.modal-content {
+    .custom-range {
+        &::-webkit-slider-thumb {
+            background: $primary;
+        }
+
+        &::-moz-range-thumb {
+            background: $primary;
+        }
+    }
+}
+
+/* Preset buttons gap fix for older Bootstrap */
+.d-flex.gap-2 {
+    gap: 8px;
+}
+
+.flex-wrap {
+    flex-wrap: wrap;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .etch-a-sketch-container {
+        padding-bottom: 200px;
+    }
+
+    .etch-header {
+        padding: 8px 12px;
+
+        h4 {
+            font-size: 1rem;
+        }
+    }
+
+    .etch-controls {
+        gap: 6px;
+
+        button {
+            padding: 5px 10px;
+            font-size: 0.85rem;
+        }
+    }
+
+    .dial-label {
+        font-size: 20px;
+        bottom: -28px;
+    }
+
+    .dial-wrapper {
+        padding: 8px;
+    }
+
+    .dial-left {
+        margin-left: 10px;
+    }
+
+    .dial-right {
+        margin-right: 10px;
+    }
+
+    .live-indicator {
+        top: auto;
+        bottom: 220px;
+        right: 50%;
+        transform: translateX(50%);
+        font-size: 11px;
+        padding: 6px 12px;
+    }
+
+    .etch-dials {
+        bottom: 15px;
+        padding: 0 15px;
+    }
+
+    .position-display {
+        font-size: 11px;
+        padding: 4px 12px;
+    }
+}
+
+@media (max-height: 700px) {
+    .etch-a-sketch-container {
+        padding-bottom: 180px;
+    }
+
+    .etch-dials {
+        bottom: 10px;
+    }
+
+    .dial-wrapper {
+        padding: 6px;
+    }
+}
+
+/* Very large screens */
+@media (min-width: 1400px) {
+    .etch-canvas-wrapper {
+        padding: 20px;
+    }
+
+    .etch-canvas {
+        border-width: 4px;
+    }
+}

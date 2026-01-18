@@ -217,11 +217,15 @@ class Preview extends Component {
         }
         // TODO add right click event on the preview with a "move here" command
 
+        // Generate a placeholder data URL (1x1 transparent pixel or black canvas)
+        const placeholderSrc = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="${this.width * this.multiplier}" height="${this.height * this.multiplier}"><rect width="100%" height="100%" fill="%23000000"/></svg>`;
+
         return <div>
             <canvas ref={this.canvasRef} className="d-none" width={this.width * this.multiplier} height={this.height * this.multiplier} />
             <img ref={this.imageRef}
                 key={this.props.imageKey}
                 className="preview-style"
+                src={placeholderSrc}
                 alt="Preview" />
         </div>
     }

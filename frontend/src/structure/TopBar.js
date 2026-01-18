@@ -1,8 +1,7 @@
 import React, { Component } from 'react';
-import { Navbar, Nav, Dropdown, ButtonGroup } from 'react-bootstrap';
-import { ChevronCompactLeft, Sliders } from 'react-bootstrap-icons';
+import { Navbar, Dropdown } from 'react-bootstrap';
+import { ChevronCompactLeft, List } from 'react-bootstrap-icons';
 import { connect } from 'react-redux';
-import IconButton from '../components/IconButton';
 
 import QueueControls from './tabs/queue/QueueControls';
 
@@ -32,97 +31,100 @@ class TopBar extends Component {
 
     renderBack() {
         if (this.props.showBack)
-            return <Nav.Link key={20} className="text-bold" onClick={() => { this.props.handleTabBack() }}><ChevronCompactLeft />Back</Nav.Link>
-        else return "";
+            return <Dropdown.Item onClick={() => { this.props.handleTabBack() }} className="font-weight-bold"><ChevronCompactLeft className="mr-2" />Back</Dropdown.Item>
+        else return null;
     }
 
-    renderSettingsButton() {
-        let notificationCounter = 0;
-        let renderedCounter = "";
-        if (!this.props.dockerComposeUpdateAvailable)
-            notificationCounter++;
-        if (notificationCounter > 0) {
-            renderedCounter = <span class="badge badge-danger ml-2">{notificationCounter}</span>
-        }
-        if (this.props.isLinux)
-            return <Dropdown as={ButtonGroup}>
-                <IconButton className="btn btn-dark mr-0"
-                    onClick={() => { this.props.handleTab("settings") }}
-                    icon={Sliders}>
-                    Settings{renderedCounter}
-                </IconButton>
 
-                <Dropdown.Toggle split className="btn btn-dark ml-0" id="dropdown-split-basic" />
-                <Dropdown.Menu className="bg-light" value="undefined">
-                    <Dropdown.Item className="hover-primary"
-                        onClick={() => settingsShutdownSystem()}>Shutdown</Dropdown.Item>
-                    <Dropdown.Item className="hover-primary"
-                        onClick={() => settingsRebootSystem()}>Reboot</Dropdown.Item>
-                </Dropdown.Menu>
-            </Dropdown>
-        else return <IconButton className="btn btn-dark"
-            onClick={() => { this.props.handleTab("settings") }}
-            icon={Sliders}>
-            Settings{renderedCounter}
-        </IconButton>
-    }
-
-    renderLEDsTab() {
-        if (this.props.showLEDs.value)
-            return <Nav.Link className={"h5" + (this.props.selectedTab === "leds" ? " highlight-tab" : "")}
-                key={5}
-                onClick={() => { this.props.handleTab("leds") }}>
-                LEDs
-            </Nav.Link>
-        else return "";
-    }
 
     render() {
         return <div>
-
-            <Navbar bg="primary" collapseOnSelect expand="lg" sticky="top" className="center">
-                <Navbar.Brand href="#home" onClick={() => { this.props.handleTab("home") }}>
-                    <h1 className="logo">Sandypi</h1>
+            <Navbar bg="primary" sticky="top" className="center justify-content-between px-3">
+                <Navbar.Brand href="#home" onClick={() => { this.props.handleTab("home") }} className="mr-0">
+                    <h1 className="logo mb-0">Sandypi</h1>
                 </Navbar.Brand>
-                <Navbar.Toggle aria-controls="topbar-nav" />
-                <Navbar.Collapse id="topbar-nav" className="max-width">
-                    <Nav className="mr-auto">
-                        <Nav.Link className={"h5" + (this.props.selectedTab === "home" ? " highlight-tab" : "")}
-                            key={1}
-                            onClick={() => { this.props.handleTab("home") }}>
-                            Home
-                        </Nav.Link>
-                        <Nav.Link className={"h5" + (this.props.selectedTab === "drawings" ? " highlight-tab" : "")}
-                            key={2}
+
+                <Dropdown alignRight>
+                    <Dropdown.Toggle id="main-menu-dropdown" style={{ backgroundColor: 'transparent', border: 'none', color: 'white', fontSize: '1.5rem', padding: '0.2rem 0.5rem' }}>
+                        <List />
+                    </Dropdown.Toggle>
+
+                    <Dropdown.Menu className="shadow-lg border-0" style={{ minWidth: '320px', padding: '10px' }}>
+
+                        {this.renderBack() && <><Dropdown.Divider /></>}
+                        {this.renderBack()}
+
+                        <Dropdown.Header className="text-uppercase font-weight-bold">Menu</Dropdown.Header>
+                        <Dropdown.Item
+                            active={this.props.selectedTab === "drawings"}
                             onClick={() => { this.props.handleTab("drawings") }}>
                             Drawings
-                        </Nav.Link>
-                        <Nav.Link className={"h5" + (this.props.selectedTab === "playlists" ? " highlight-tab" : "")}
-                            key={3}
+                        </Dropdown.Item>
+                        <Dropdown.Item
+                            active={this.props.selectedTab === "playlists"}
                             onClick={() => { this.props.handleTab("playlists") }}>
                             Playlists
-                        </Nav.Link>
-                        <Nav.Link className={"h5" + (this.props.selectedTab === "manual" ? " highlight-tab" : "")}
-                            key={4}
-                            onClick={() => { this.props.handleTab("manual") }}>
-                            Manual control
-                        </Nav.Link>
-                        <Nav.Link className={"h5" + (this.props.selectedTab === "canvas" ? " highlight-tab" : "")}
-                            key={5}
+                        </Dropdown.Item>
+                        <Dropdown.Item
+                            active={this.props.selectedTab === "canvas"}
                             onClick={() => { this.props.handleTab("canvas") }}>
                             Canvas
-                        </Nav.Link>
-                        <Nav.Link className={"h5" + (this.props.selectedTab === "sandify" ? " highlight-tab" : "")}
-                            key={6}
-                            onClick={() => { this.props.handleTab("sandify") }}>
-                            Sandify
-                        </Nav.Link>
-                        {this.renderLEDsTab()}
-                        {this.renderBack()}
-                    </Nav>
-                    <QueueControls />
-                    {this.renderSettingsButton()}
-                </Navbar.Collapse>
+                        </Dropdown.Item>
+                        <Dropdown.Item
+                            active={this.props.selectedTab === "patternBuilder"}
+                            onClick={() => { this.props.handleTab("patternBuilder") }}>
+                            Pattern Builder
+                        </Dropdown.Item>
+                        <Dropdown.Item
+                            active={this.props.selectedTab === "etchASketch"}
+                            onClick={() => { this.props.handleTab("etchASketch") }}>
+                            Etch-a-Sketch
+                        </Dropdown.Item>
+                        <Dropdown.Item
+                            active={this.props.selectedTab === "kaleidoscope"}
+                            onClick={() => { this.props.handleTab("kaleidoscope") }}>
+                            Kaleidoscope
+                        </Dropdown.Item>
+                        <Dropdown.Item
+                            active={this.props.selectedTab === "spirograph"}
+                            onClick={() => { this.props.handleTab("spirograph") }}>
+                            Spirograph
+                        </Dropdown.Item>
+
+                        <Dropdown.Item
+                            active={this.props.selectedTab === "settings"}
+                            onClick={() => { this.props.handleTab("settings") }}>
+                            Settings
+                            {!this.props.dockerComposeUpdateAvailable && <span className="badge badge-danger ml-2">1</span>}
+                        </Dropdown.Item>
+
+                        <Dropdown.Divider className="my-3" />
+                        <Dropdown.Header className="text-uppercase font-weight-bold">Actions</Dropdown.Header>
+
+                        {/* Queue Controls Container */}
+                        <div className="px-2 pb-2 d-flex justify-content-center w-100" onClick={(e) => e.stopPropagation()}>
+                            {/* stopPropagation prevents menu close when clicking Queue controls (optional, removed if auto-close desired) 
+                                Actually, user might want to click multiple buttons (e.g. Shuffle then Next). 
+                                But Start Random Drawing should probably close it. 
+                                Let's NOT stopPropagation for now to keep standard dropdown behavior.
+                             */}
+                            <QueueControls />
+                        </div>
+
+                        {this.props.isLinux && (
+                            <>
+                                <Dropdown.Divider className="my-3" />
+                                <Dropdown.Header className="text-uppercase font-weight-bold text-danger">Power</Dropdown.Header>
+                                <Dropdown.Item className="text-danger font-weight-bold" onClick={() => settingsRebootSystem()}>
+                                    Reboot System
+                                </Dropdown.Item>
+                                <Dropdown.Item className="text-danger font-weight-bold" onClick={() => settingsShutdownSystem()}>
+                                    Shutdown System
+                                </Dropdown.Item>
+                            </>
+                        )}
+                    </Dropdown.Menu>
+                </Dropdown>
             </Navbar>
         </div>
     }

@@ -18,7 +18,11 @@ import PlaylistDataDownloader from '../components/PlaylistDataDownloader';
 import SinglePlaylist from './tabs/playlists/SinglePlaylist/SinglePlaylist';
 import LedsController from './tabs/leds/Leds';
 import Canvas from './tabs/canvas/Canvas';
-import Sandify from './tabs/sandify/Sandify';
+import PatternBuilder from './tabs/patternBuilder/PatternBuilder';
+import EtchASketch from './tabs/etchASketch/EtchASketch';
+import Kaleidoscope from './tabs/kaleidoscope/Kaleidoscope';
+import Spirograph from './tabs/spirograph/Spirograph';
+
 
 const mapStateToProps = (state) => {
     return {
@@ -28,36 +32,6 @@ const mapStateToProps = (state) => {
 
 class Content extends Component {
 
-    componentDidMount() {
-        window.addEventListener("message", this.handleSandifyMessage);
-    }
-
-    componentWillUnmount() {
-        window.removeEventListener("message", this.handleSandifyMessage);
-    }
-
-    handleSandifyMessage = (event) => {
-        if (event.data.type === 'SANDIFY_GCODE') {
-            const { gcode, name } = event.data;
-            const blob = new Blob([gcode], { type: 'text/plain' });
-            const file = new File([blob], name, { type: 'text/plain' });
-
-            let data = new FormData();
-            data.append("file", file);
-            data.append("filename", name);
-
-            fetch("/api/upload/", {
-                method: "POST",
-                body: data
-            }).then(response => {
-                if (response.status === 200) {
-                    window.showToast(`Drawing "${name}" uploaded successfully`);
-                } else {
-                    window.showToast(`Error uploading "${name}"`);
-                }
-            }).catch(err => console.error(err));
-        }
-    }
 
     render() {
         return <div className="max-width m-auto text-light pt-3 pb-5 mh100">
@@ -95,9 +69,19 @@ class Content extends Component {
                 <Tab eventKey="canvas" title="Canvas">
                     <Canvas />
                 </Tab>
-                <Tab eventKey="sandify" title="Sandify">
-                    <Sandify />
+                <Tab eventKey="patternBuilder" title="Pattern Builder">
+                    <PatternBuilder />
                 </Tab>
+                <Tab eventKey="etchASketch" title="Etch-a-Sketch">
+                    <EtchASketch />
+                </Tab>
+                <Tab eventKey="kaleidoscope" title="Kaleidoscope">
+                    <Kaleidoscope />
+                </Tab>
+                <Tab eventKey="spirograph" title="Spirograph">
+                    <Spirograph />
+                </Tab>
+
             </Tabs>
         </div>
     }

@@ -7,6 +7,7 @@ import queueReducer from './structure/tabs/queue/Queue.slice';
 import tabsReducer from './structure/tabs/Tabs.slice';
 import drawingsReducer from './structure/tabs/drawings/Drawings.slice';
 import playlistReducer from './structure/tabs/playlists/Playlists.slice';
+import patternBuilderReducer from './structure/tabs/patternBuilder/PatternBuilder.slice';
 
 
 // save state to local storage
@@ -22,9 +23,9 @@ function saveToLocalStorage(state) {
 // will create the storage with the values saved in local storage
 function loadFromLocalStorage() {
     // if is loading a new version from the server, clear the local storage (to avoid compatibility issues between different frontend versions)
-    try{
+    try {
         const version = localStorage.getItem("version");
-        if (version !== process.env.REACT_APP_VERSION){
+        if (version !== process.env.REACT_APP_VERSION) {
             console.warn("New version detected. Clearing local storage");
             localStorage.clear();
             localStorage.setItem("version", process.env.REACT_APP_VERSION);
@@ -51,7 +52,8 @@ const reducer = combineReducers({
     queue: queueReducer,
     tabs: tabsReducer,
     drawings: drawingsReducer,
-    playlists: playlistReducer
+    playlists: playlistReducer,
+    patternBuilder: patternBuilderReducer
 });
 
 
@@ -70,7 +72,7 @@ const store = createStore(
     reducer,
     loadFromLocalStorage(),
     compose(
-        applyMiddleware(thunk), 
+        applyMiddleware(thunk),
         devTools
     )
 );

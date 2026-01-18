@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
-import { Container, Form, Col, Button, Row } from 'react-bootstrap';
-import { PlusSquare, Save, Trash } from 'react-bootstrap-icons';
+import { Container, Form, Col, Button, Row, Card, Accordion } from 'react-bootstrap';
+import { PlusSquare, Save, Trash, Joystick, Lightbulb } from 'react-bootstrap-icons';
 import { connect } from 'react-redux';
 
 import { Section, Subsection, SectionGroup } from '../../../components/Section';
@@ -15,6 +15,10 @@ import { cloneDict } from '../../../utils/dictUtils';
 import SettingField from './SettingField';
 import SoftwareVersion from './SoftwareVersion';
 import Visualizer from './Visualizer';
+
+// Import ManualControl and LEDs components for embedding
+import ManualControl from '../manual/ManualControl';
+import LedsController from '../leds/Leds';
 
 const mapStateToProps = (state) => {
     return {
@@ -221,12 +225,65 @@ class Settings extends Component {
         let scriptEntries = Object.entries(this.props.settings.scripts);
         let autostartEntries = Object.entries(this.props.settings.autostart);
 
+        // Check if LEDs are available
+        const showLEDs = this.props.settings.leds && this.props.settings.leds.available;
+
         return <Container>
             <Form>
                 <Section sectionTitle="Settings"
                     sectionButtonHandler={this.saveForm.bind(this)}
                     buttonIcon={Save}
                     sectionButton="Save settings">
+
+                    {/* Tools Section - Manual Control and LEDs */}
+                    <Subsection sectionTitle="Tools">
+                        <Accordion className="mb-4">
+                            {/* Manual Control */}
+                            <Card className="bg-dark border-secondary mb-2">
+                                <Card.Header className="bg-dark p-0 border-secondary">
+                                    <Accordion.Toggle
+                                        as={Button}
+                                        variant="link"
+                                        eventKey="manual"
+                                        className="w-100 text-left text-white text-decoration-none p-3 d-flex align-items-center"
+                                    >
+                                        <Joystick className="mr-3" size={20} />
+                                        <span className="font-weight-bold">Manual Control</span>
+                                        <small className="ml-auto text-muted">G-code commands & jogging</small>
+                                    </Accordion.Toggle>
+                                </Card.Header>
+                                <Accordion.Collapse eventKey="manual">
+                                    <Card.Body className="bg-secondary p-0">
+                                        <ManualControl />
+                                    </Card.Body>
+                                </Accordion.Collapse>
+                            </Card>
+
+                            {/* LEDs Control */}
+                            {showLEDs && (
+                                <Card className="bg-dark border-secondary">
+                                    <Card.Header className="bg-dark p-0 border-secondary">
+                                        <Accordion.Toggle
+                                            as={Button}
+                                            variant="link"
+                                            eventKey="leds"
+                                            className="w-100 text-left text-white text-decoration-none p-3 d-flex align-items-center"
+                                        >
+                                            <Lightbulb className="mr-3" size={20} />
+                                            <span className="font-weight-bold">LED Control</span>
+                                            <small className="ml-auto text-muted">Color & brightness</small>
+                                        </Accordion.Toggle>
+                                    </Card.Header>
+                                    <Accordion.Collapse eventKey="leds">
+                                        <Card.Body className="bg-secondary p-0">
+                                            <LedsController />
+                                        </Card.Body>
+                                    </Accordion.Collapse>
+                                </Card>
+                            )}
+                        </Accordion>
+                    </Subsection>
+
                     <Subsection sectionTitle="Device settings">
                         <SectionGroup sectionTitle="Serial port settings">
                             <Container>
