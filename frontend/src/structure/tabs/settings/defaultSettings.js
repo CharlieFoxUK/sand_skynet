@@ -163,15 +163,21 @@ const defaultSettings = {
 		},
 		canvas_rotation: {
 			name: "device.canvas_rotation",
-			type: "int",
-			value: 0,
-			label: "Canvas Rotation",
+			type: "select",
+			value: "0",
+			label: "Screen Orientation",
+			available_values: [
+				"0",
+				"90",
+				"180",
+				"270"
+			],
 			depends_on: "device.type",
 			depends_values: [
 				"Cartesian"
 			],
-			tip: "Rotation of the canvas (0, 90, 180, 270)",
-			hide: true
+			tip: "Rotate canvas to match how you view your table (degrees clockwise)",
+			hide: false
 		},
 		radius: {
 			name: "device.radius",

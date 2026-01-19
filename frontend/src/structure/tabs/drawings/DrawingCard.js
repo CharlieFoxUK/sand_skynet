@@ -10,6 +10,7 @@ import { drawingQueue } from '../../../sockets/sEmits';
 import { showSingleDrawing } from '../Tabs.slice';
 
 import Image from '../../../components/Image';
+import GCodePreview from '../../../components/GCodePreview';
 import DrawingCardMenu from './DrawingCardMenu';
 
 import { getSettings } from '../settings/selector';
@@ -32,19 +33,21 @@ class DrawingCard extends Component {
         const highlight = this.props.highlight ? " card-highlight" : "";
 
         const device = this.props.settings.device || {};
-        const rotation = parseInt(device.thumbnail_rotation ? device.thumbnail_rotation.value : 0) || 0;
+        const canvasRotation = parseInt(device.canvas_rotation ? device.canvas_rotation.value : 0) || 0;
+        // Base 90° needed because canvas shows X as vertical but thumbnails are generated with X as horizontal
+        const rotation = 90 - canvasRotation;
 
         return <DrawingCardMenu onStartDrawing={(id) => drawingQueue(id)} drawing={this.props.drawing}>
             <Card className="p-2 hover-zoom" onClick={() => this.props.showSingleDrawing(this.props.drawing.id)}>
 
-                <div className={"border-0 bg-black rounded text-dark clickable center p-0"}>
-                    <Image className={"card-img-top rounded" + highlight}
-                        style={{ transform: `rotate(${-rotation}deg)`, transition: 'transform 0.3s ease' }}
-                        src={getImgUrl(this.props.drawing.id)}
-                        alt="Drawing image" />
-                    <div className="card-img-overlay h-100 d-flex flex-column justify-content-end p-2">
+                <div className={"border-0 bg-black rounded text-dark clickable center p-0"} style={{ overflow: 'hidden', aspectRatio: '1' }}>
+                    <GCodePreview
+                        drawingId={this.props.drawing.id}
+                        className={"card-img-top rounded" + highlight}
+                    />
+                    <div className="card-img-overlay h-100 d-flex flex-column justify-content-end p-2" style={{ pointerEvents: 'none' }}>
                         <div className="card-text text-center text-primary p-1 glass rounded-bottom">
-                            {this.props.drawing.filename}
+                            {this.props.drawing.filename.replace(/\.gcode$/i, '')}
                         </div>
                     </div>
                 </div>

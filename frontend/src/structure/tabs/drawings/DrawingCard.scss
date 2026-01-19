@@ -1,13 +1,35 @@
 @import "../../../colors";
 
-.card-img-top{
+.card-img-top {
     height: 100%;
+    object-fit: contain;
 }
 
-.modal-drawing-preview{
+// Container that holds the rotated image needs overflow visible
+.drawing-image-container {
+    overflow: visible;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    aspect-ratio: 1;
+}
+
+// Hide overlay text by default
+.card-img-overlay {
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+}
+
+// Show on hover of the parent card
+.hover-zoom:hover .card-img-overlay {
+    opacity: 1;
+}
+
+
+.modal-drawing-preview {
     width: 80%;
 }
 
-.card-highlight{
+.card-highlight {
     border: 5px solid $primary;
 }

@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
-import { Container, Form, Modal, Row, Col } from 'react-bootstrap';
-import { FileEarmarkX, Play, Plus, PlusSquare, X, Download } from 'react-bootstrap-icons';
+import { Container, Form, Modal, Row, Col, InputGroup } from 'react-bootstrap';
+import { FileEarmarkX, Play, Plus, PlusSquare, X, Download, ChevronCompactLeft, Pencil, Check } from 'react-bootstrap-icons';
 import { connect } from 'react-redux';
 
 import { drawingDelete, drawingQueue } from '../../../sockets/sEmits';
@@ -19,6 +19,7 @@ import { tabBack } from '../Tabs.slice';
 import { deleteDrawing, setRefreshDrawing } from './Drawings.slice';
 import { addToPlaylist } from '../playlists/Playlists.slice';
 import Image from '../../../components/Image';
+import GCodePreview from '../../../components/GCodePreview';
 
 
 const mapStateToProps = (state) => {
@@ -43,7 +44,9 @@ class SingleDrawing extends Component {
     constructor(props) {
         super(props);
         this.state = {
-            showPlaylists: false
+            showPlaylists: false,
+            isRenaming: false,
+            renameValue: ""
         };
         this.selectRef = React.createRef();
     }
@@ -52,10 +55,48 @@ class SingleDrawing extends Component {
         if (this.props.playlists.length > 0) {
             return <IconButton className="btn w-100 center"
                 icon={PlusSquare}
+                tip="Add to playlist"
                 onClick={() => this.setState({ ...this.state, showPlaylists: true })}>
-                Add to playlist
             </IconButton>
         } else return "";
+    }
+
+    handleRenameStart = () => {
+        const currentName = this.props.drawing.filename.replace(/\.gcode$/i, '');
+        this.setState({ isRenaming: true, renameValue: currentName });
+    }
+
+    handleRenameCancel = () => {
+        this.setState({ isRenaming: false, renameValue: "" });
+    }
+
+    handleRenameSave = () => {
+        const id = this.props.drawing.id;
+        const name = this.state.renameValue;
+
+        if (!name || name.trim() === "") return;
+
+        fetch('/api/rename/' + id, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ name: name }),
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    this.props.refreshDrawings();
+                    this.setState({ isRenaming: false });
+                    window.showToast("Drawing renamed successfully");
+                } else {
+                    window.showToast("Error renaming drawing: " + (data.error || "Unknown error"));
+                }
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+                window.showToast("Error renaming drawing");
+            });
     }
 
     render() {
@@ -67,48 +108,73 @@ class SingleDrawing extends Component {
             // TODO add possibility to edit the gcode file and render again the drawing
             return <Container>
                 <div className="mb-3 w-100 center">
-                    <h1 className="d-inline-block ml-3">{this.props.drawing.filename}</h1>
+                    {this.state.isRenaming ? (
+                        <div className="d-inline-flex w-50 align-items-center justify-content-center">
+                            <Form.Control
+                                type="text"
+                                value={this.state.renameValue}
+                                onChange={(e) => this.setState({ renameValue: e.target.value })}
+                                style={{ fontSize: '1.5rem', textAlign: 'center' }}
+                            />
+                            <IconButton className="btn-success ml-2" icon={Check} onClick={this.handleRenameSave} />
+                            <IconButton className="btn-danger ml-2" icon={X} onClick={this.handleRenameCancel} />
+                        </div>
+                    ) : (
+                        <h1 className="d-inline-flex align-items-center ml-3">
+                            {this.props.drawing.filename.replace(/\.gcode$/i, '')}
+                            <IconButton className="btn-link text-white ml-3 p-0" style={{ fontSize: '1rem' }} icon={Pencil} onClick={this.handleRenameStart} />
+                        </h1>
+                    )}
                 </div>
-                <Row className="center pb-3">
-                    <Col sm={3} className="center">
-                        <IconButton className="btn w-100 center"
+                <Row className="center pb-3 justify-content-center">
+                    <Col xs="auto" className="center mx-1 mb-2">
+                        <IconButton className="btn center"
+                            icon={ChevronCompactLeft}
+                            tip="Back to drawings"
+                            onClick={() => this.props.handleTabBack()}>
+                        </IconButton>
+                    </Col>
+                    <Col xs="auto" className="center mx-1 mb-2">
+                        <IconButton className="btn center"
                             icon={Play}
+                            tip={startDrawingLabel}
                             onClick={() => {
                                 drawingQueue(this.props.drawing.id);
                                 this.props.handleTabBack();
                             }}>
-                            {startDrawingLabel}
                         </IconButton>
                     </Col>
-                    <Col sm={3} className="center">
+                    <Col xs="auto" className="center mx-1 mb-2">
                         {this.renderAddToPlaylistButton()}
                     </Col>
-                    <Col sm={3} className="center">
-                        <IconButton className="btn w-100 center"
+                    <Col xs="auto" className="center mx-1 mb-2">
+                        <IconButton className="btn center"
                             icon={Download}
+                            tip="Download G-code"
                             onClick={() => window.open('/api/download/' + this.props.drawing.id)}>
-                            Download
                         </IconButton>
                     </Col>
-                    <Col sm={3} className="center">
-                        <ConfirmButton className="w-100 center"
+                    <Col xs="auto" className="center mx-1 mb-2">
+                        <ConfirmButton className="center"
                             icon={FileEarmarkX}
+                            tip="Delete drawing"
                             onClick={() => {
                                 drawingDelete(this.props.drawing.id);
                                 this.props.deleteDrawing(this.props.drawing.id);
                                 this.props.handleTabBack();
                             }}>
-                            Delete drawing
                         </ConfirmButton>
                     </Col>
                 </Row>
                 <div className="center mb-5">
                     {(() => {
-                        const device = this.props.settings.device || {};
-                        const rotation = parseInt(device.thumbnail_rotation ? device.thumbnail_rotation.value : 0) || 0;
-                        return <Image className="modal-drawing-preview"
-                            style={{ transform: `rotate(${-rotation}deg)`, transition: 'transform 0.3s ease' }}
-                            src={getImgUrl(this.props.drawing.id)} alt="Drawing image" />;
+                        return <div className="modal-drawing-preview" style={{ aspectRatio: '500/510', width: '850px', maxWidth: '100%', margin: '0 auto' }}>
+                            <GCodePreview
+                                drawingId={this.props.drawing.id}
+                                strokeWidth={2}
+                                resolutionScale={2}
+                            />
+                        </div>
                     })()}
                 </div>
                 <Modal show={this.state.showPlaylists}

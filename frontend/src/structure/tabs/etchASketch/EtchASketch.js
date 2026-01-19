@@ -1,8 +1,12 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { Form, Button, Modal } from 'react-bootstrap';
-import { Trash, Download, Broadcast, Gear } from 'react-bootstrap-icons';
+import { Form, Button, Modal, InputGroup } from 'react-bootstrap';
+import { Trash, Download, Broadcast, Gear, Upload } from 'react-bootstrap-icons';
+import { useSelector } from 'react-redux';
 import RotaryDial from './RotaryDial';
 import { sendCommand } from '../../../sockets/sEmits';
+import { getTableConfig, getCanvasDisplaySize, getCornerCoordinates, formatCoordinate } from '../../../utils/tableConfig';
+import { generateGCode, downloadGCode as downloadGCodeUtil, uploadGCode, CoordinateType } from '../../../utils/gcodeGenerator';
+import { canvasToGcode } from '../../../utils/coordinateTransform';
 import './EtchASketch.scss';
 
 /**
@@ -10,6 +14,7 @@ import './EtchASketch.scss';
  * Similar to the classic Etch-a-Sketch toy
  */
 function EtchASketch() {
+    const settings = useSelector(state => state.settings);
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
     const [position, setPosition] = useState({ x: 0.5, y: 0.5 });
@@ -17,46 +22,37 @@ function EtchASketch() {
     const [gcodeLines, setGcodeLines] = useState([]);
     const [isInitialized, setIsInitialized] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
+    const [drawingName, setDrawingName] = useState("");
+
+    const [rotations, setRotations] = useState({ x: 0, y: 0 });
 
     // Settings - resolution affects how many rotations needed to cross canvas
-    // Lower value = more rotations needed
-    const [resolution, setResolution] = useState(0.02); // Default: requires ~50 full rotations to cross
-
-    // Cursor size setting (0 = invisible, 1 = normal, 2 = large)
+    const [resolution, setResolution] = useState(0.02);
     const [cursorSize, setCursorSize] = useState(1);
+    const [maxDisplaySize, setMaxDisplaySize] = useState(600);
 
-    // Display canvas size (fills available screen)
-    const [displaySize, setDisplaySize] = useState({ width: 800, height: 600 });
-
-    // Internal canvas resolution (high res for smooth lines)
-    const INTERNAL_RESOLUTION = 2000;
+    // Get table config from Redux
+    const config = getTableConfig(settings);
 
     // Store path history for redrawing
     const pathRef = useRef([{ x: 0.5, y: 0.5 }]);
 
-    // Machine bounds (normalized 0-1)
-    const BOUNDS = { min: 0, max: 1 };
+    // Internal canvas resolution for smooth rendering
+    const INTERNAL_RESOLUTION = 2000;
 
-    // Calculate display size to fill available viewport
+    // Calculate display size based on table aspect ratio and viewport
     useEffect(() => {
         const updateSize = () => {
-            // Get viewport dimensions
             const viewportHeight = window.innerHeight;
             const viewportWidth = window.innerWidth;
-
-            // Reserve space for: header (~70px), dials (~220px on mobile, ~250px on desktop), padding
             const headerHeight = 80;
             const dialsHeight = viewportWidth < 768 ? 200 : 230;
             const padding = 40;
-
-            // Available height for canvas
-            const availableHeight = viewportHeight - headerHeight - dialsHeight - padding;
-            const availableWidth = viewportWidth - 40; // 20px padding each side
-
-            // Use the maximum square that fits
-            const size = Math.min(availableWidth, availableHeight, 1200);
-
-            setDisplaySize({ width: size, height: size });
+            const inputRowHeight = 50;
+            const availableHeight = viewportHeight - headerHeight - dialsHeight - padding - inputRowHeight;
+            const availableWidth = viewportWidth - 40;
+            const maxSize = Math.min(availableWidth, availableHeight, 900);
+            setMaxDisplaySize(Math.max(300, maxSize));
         };
 
         updateSize();
@@ -64,7 +60,14 @@ function EtchASketch() {
         return () => window.removeEventListener('resize', updateSize);
     }, []);
 
-    // Draw the entire canvas (background + all paths)
+    // Get proper display size maintaining aspect ratio
+    const displaySize = getCanvasDisplaySize(config, {
+        maxWidth: maxDisplaySize,
+        maxHeight: maxDisplaySize
+    });
+    const corners = getCornerCoordinates(config);
+
+    // Draw the entire canvas
     const redrawCanvas = useCallback(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -76,7 +79,7 @@ function EtchASketch() {
         ctx.fillStyle = '#0d0d0d';
         ctx.fillRect(0, 0, size, size);
 
-        // Draw grid (finer grid for larger canvas)
+        // Draw grid
         ctx.strokeStyle = '#1a1a1a';
         ctx.lineWidth = 1;
         const gridCount = 20;
@@ -111,7 +114,7 @@ function EtchASketch() {
         const path = pathRef.current;
         if (path.length > 1) {
             ctx.strokeStyle = '#20c997';
-            ctx.lineWidth = 6; // Thicker line for high-res canvas
+            ctx.lineWidth = 6;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
 
@@ -128,27 +131,22 @@ function EtchASketch() {
             ctx.stroke();
         }
 
-        // Draw current position indicator (cursor) - only if cursorSize > 0
+        // Draw cursor
         if (cursorSize > 0) {
             const currentX = position.x * size;
             const currentY = (1 - position.y) * size;
-
-            // Scale factor based on cursor size setting
             const scale = cursorSize;
 
-            // Outer glow
             ctx.beginPath();
             ctx.arc(currentX, currentY, 30 * scale, 0, Math.PI * 2);
             ctx.fillStyle = 'rgba(32, 201, 151, 0.2)';
             ctx.fill();
 
-            // Middle ring
             ctx.beginPath();
             ctx.arc(currentX, currentY, 20 * scale, 0, Math.PI * 2);
             ctx.fillStyle = 'rgba(32, 201, 151, 0.4)';
             ctx.fill();
 
-            // Inner dot
             ctx.beginPath();
             ctx.arc(currentX, currentY, 12 * scale, 0, Math.PI * 2);
             ctx.fillStyle = '#fff';
@@ -157,133 +155,166 @@ function EtchASketch() {
             ctx.lineWidth = 4 * scale;
             ctx.stroke();
         }
-
     }, [position, cursorSize]);
 
-    // Initialize canvas
+    // Initialize
     useEffect(() => {
         setIsInitialized(true);
         pathRef.current = [{ x: 0.5, y: 0.5 }];
     }, []);
 
-    // Redraw whenever position changes
+    // Redraw on position change
     useEffect(() => {
         if (isInitialized) {
             redrawCanvas();
         }
     }, [position, isInitialized, redrawCanvas]);
 
-    // Handle X dial rotation - resolution controls sensitivity
-    const handleXChange = useCallback((delta) => {
+    // Generic handler for movement (updates position and rotation)
+    const handleDoMove = useCallback((axis, rotateDelta) => {
+        // Update visual rotation
+        setRotations(prev => ({
+            ...prev,
+            [axis]: prev[axis] + rotateDelta
+        }));
+
+        // Update position
         setPosition(prev => {
-            // Apply resolution factor - lower resolution = smaller movement per dial turn
-            const scaledDelta = delta * resolution;
-            const newX = Math.max(BOUNDS.min, Math.min(BOUNDS.max, prev.x + scaledDelta));
+            // Calculate movement delta. 
+            // We use 0.1 scale factor to match previous RotaryDial 'output' logic.
+            const moveDelta = rotateDelta * 0.1 * resolution;
 
-            // Only process if position actually changed meaningfully
-            if (Math.abs(newX - prev.x) > 0.0001) {
-                const newPos = { x: newX, y: prev.y };
+            let newPos = { ...prev };
 
-                // Add to path (only if moved enough to be visible)
-                if (pathRef.current.length === 0 ||
-                    Math.abs(newX - pathRef.current[pathRef.current.length - 1].x) > 0.0005) {
-                    pathRef.current.push(newPos);
-                }
+            if (axis === 'x') {
+                const newX = Math.max(0, Math.min(1, prev.x + moveDelta));
+                if (Math.abs(newX - prev.x) > 0.0001) {
+                    newPos.x = newX;
+                } else return prev;
+            } else {
+                const newY = Math.max(0, Math.min(1, prev.y + moveDelta));
+                if (Math.abs(newY - prev.y) > 0.0001) {
+                    newPos.y = newY;
+                } else return prev;
+            }
 
-                // Generate G-code
-                const gcode = `G1 X${(newX * 100).toFixed(3)} Y${(prev.y * 100).toFixed(3)} F1000`;
+            // Record path and send G-code
+            if (pathRef.current.length === 0 ||
+                Math.abs(newPos.x - pathRef.current[pathRef.current.length - 1].x) > 0.0005 ||
+                Math.abs(newPos.y - pathRef.current[pathRef.current.length - 1].y) > 0.0005) {
+
+                pathRef.current.push(newPos);
+
+                // Generate G-code using proper transform
+                const gp = canvasToGcode(newPos.x, 1 - newPos.y, 1, 1, config);
+                const gcode = `G1 X${gp.x.toFixed(3)} Y${gp.y.toFixed(3)} F1000`;
                 setGcodeLines(lines => [...lines, gcode]);
 
-                // Send command if live tracking is enabled
                 if (liveTrack) {
                     sendCommand(gcode);
                 }
-
-                return newPos;
             }
-            return prev;
+
+            return newPos;
         });
-    }, [liveTrack, resolution]);
+    }, [liveTrack, resolution, config]);
 
-    // Handle Y dial rotation
-    const handleYChange = useCallback((delta) => {
-        setPosition(prev => {
-            // Apply resolution factor
-            const scaledDelta = delta * resolution;
-            const newY = Math.max(BOUNDS.min, Math.min(BOUNDS.max, prev.y + scaledDelta));
+    // Keyboard handlers
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            const STEP_DEGREES = 15; // Amount of rotation per key press
 
-            // Only process if position actually changed meaningfully
-            if (Math.abs(newY - prev.y) > 0.0001) {
-                const newPos = { x: prev.x, y: newY };
+            // Only capture arrow keys if not focused on inputs
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-                // Add to path
-                if (pathRef.current.length === 0 ||
-                    Math.abs(newY - pathRef.current[pathRef.current.length - 1].y) > 0.0005) {
-                    pathRef.current.push(newPos);
-                }
-
-                // Generate G-code
-                const gcode = `G1 X${(prev.x * 100).toFixed(3)} Y${(newY * 100).toFixed(3)} F1000`;
-                setGcodeLines(lines => [...lines, gcode]);
-
-                // Send command if live tracking is enabled
-                if (liveTrack) {
-                    sendCommand(gcode);
-                }
-
-                return newPos;
+            switch (e.key) {
+                case 'ArrowRight':
+                    handleDoMove('x', STEP_DEGREES);
+                    e.preventDefault();
+                    break;
+                case 'ArrowLeft':
+                    handleDoMove('x', -STEP_DEGREES);
+                    e.preventDefault();
+                    break;
+                case 'ArrowUp':
+                    handleDoMove('y', STEP_DEGREES);
+                    e.preventDefault();
+                    break;
+                case 'ArrowDown':
+                    handleDoMove('y', -STEP_DEGREES);
+                    e.preventDefault();
+                    break;
+                default:
+                    break;
             }
-            return prev;
-        });
-    }, [liveTrack, resolution]);
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handleDoMove]);
 
     // Clear canvas
     const handleClear = useCallback(() => {
         pathRef.current = [{ x: 0.5, y: 0.5 }];
         setPosition({ x: 0.5, y: 0.5 });
+        setRotations({ x: 0, y: 0 }); // Reset Dials
         setGcodeLines([]);
     }, []);
 
     // Download G-code
     const handleDownload = useCallback(() => {
-        if (gcodeLines.length === 0) {
+        if (pathRef.current.length < 2) {
             window.showToast && window.showToast('No drawing to download');
             return;
         }
 
-        const header = [
-            '; Etch-a-Sketch Drawing',
-            '; Generated by Sandypi',
-            `; Lines: ${gcodeLines.length}`,
-            `; Resolution setting: ${resolution}`,
-            'G28 ; Home',
-            'G90 ; Absolute positioning',
-            ''
-        ];
+        // Convert path to canvas coordinates for the generator
+        const canvasPath = pathRef.current.map(p => ({
+            x: p.x,
+            y: 1 - p.y // Flip Y (path uses bottom-up, canvas uses top-down)
+        }));
 
-        const footer = [
-            '',
-            'G28 ; Return home',
-            '; End of drawing'
-        ];
+        const gcode = generateGCode([canvasPath], config, {
+            feedrate: 1000,
+            coordinateType: CoordinateType.CANVAS,
+            canvasSize: { width: 1, height: 1 }
+        });
 
-        const fullGcode = [...header, ...gcodeLines, ...footer].join('\n');
-
-        const blob = new Blob([fullGcode], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `etch-a-sketch-${Date.now()}.gcode`;
-        a.click();
-        URL.revokeObjectURL(url);
-
+        downloadGCodeUtil(gcode, `etch-a-sketch-${Date.now()}`);
         window.showToast && window.showToast('G-code downloaded!');
-    }, [gcodeLines, resolution]);
+    }, [config]);
 
-    // Calculate dial size based on viewport
+    // Upload/Save G-code
+    const handleSave = useCallback(async () => {
+        if (pathRef.current.length < 2) {
+            window.showToast?.('No drawing to save');
+            return;
+        }
+
+        const name = drawingName.trim() || `etch-${new Date().toLocaleTimeString().replace(/:/g, '-')}`;
+
+        // Convert path to canvas coordinates
+        const canvasPath = pathRef.current.map(p => ({
+            x: p.x,
+            y: 1 - p.y
+        }));
+
+        const gcode = generateGCode([canvasPath], config, {
+            feedrate: 1000,
+            coordinateType: CoordinateType.CANVAS,
+            canvasSize: { width: 1, height: 1 }
+        });
+
+        try {
+            await uploadGCode(gcode, name);
+            window.showToast?.(`Drawing "${name}" saved successfully!`);
+        } catch (error) {
+            console.error("Save error:", error);
+            alert(`Error saving drawing: ${error.message}`);
+        }
+    }, [config, drawingName]);
+
     const dialSize = Math.min(window.innerWidth * 0.25, 180);
-
-    // Calculate approximate rotations needed to cross canvas
     const rotationsNeeded = Math.round(1 / (resolution * 0.1));
 
     return (
@@ -317,10 +348,19 @@ function EtchASketch() {
                         variant="outline-light"
                         size="sm"
                         onClick={handleDownload}
-                        disabled={gcodeLines.length === 0}
+                        disabled={pathRef.current.length < 2}
                         title="Download G-code"
                     >
                         <Download />
+                    </Button>
+                    <Button
+                        variant="outline-success"
+                        size="sm"
+                        onClick={handleSave}
+                        disabled={pathRef.current.length < 2}
+                        title="Save to Drawings"
+                    >
+                        <Upload />
                     </Button>
                     <Button
                         variant="outline-danger"
@@ -335,6 +375,12 @@ function EtchASketch() {
 
             {/* Main Drawing Area */}
             <div className="etch-canvas-wrapper">
+                {/* Corner coordinates */}
+                <div className="corner-label top-left">{formatCoordinate(corners.topLeft)}</div>
+                <div className="corner-label top-right">{formatCoordinate(corners.topRight)}</div>
+                <div className="corner-label bottom-left">{formatCoordinate(corners.bottomLeft)}</div>
+                <div className="corner-label bottom-right">{formatCoordinate(corners.bottomRight)}</div>
+
                 <canvas
                     ref={canvasRef}
                     width={INTERNAL_RESOLUTION}
@@ -346,23 +392,38 @@ function EtchASketch() {
                     }}
                 />
 
-                {/* Position indicator */}
                 <div className="position-display">
                     X: {(position.x * 100).toFixed(2)}% | Y: {(position.y * 100).toFixed(2)}%
                 </div>
 
-                {/* G-code line count */}
                 <div className="gcode-count">
                     {gcodeLines.length} lines
                 </div>
             </div>
 
-            {/* Rotary Dials - Fixed at bottom */}
+            {/* Name Input Row */}
+            <div className="w-100 d-flex justify-content-center mb-2" style={{ maxWidth: '400px', margin: '0 auto', padding: '0 10px' }}>
+                <InputGroup size="sm">
+                    <InputGroup.Prepend>
+                        <InputGroup.Text className="bg-dark text-white border-secondary">Name</InputGroup.Text>
+                    </InputGroup.Prepend>
+                    <Form.Control
+                        type="text"
+                        placeholder={`etch-${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                        value={drawingName}
+                        onChange={(e) => setDrawingName(e.target.value)}
+                        className="bg-dark text-white border-secondary"
+                    />
+                </InputGroup>
+            </div>
+
+            {/* Rotary Dials */}
             <div className="etch-dials">
                 <div className="dial-wrapper dial-left">
                     <RotaryDial
                         label="X"
-                        onChange={handleXChange}
+                        value={rotations.x}
+                        onRotate={(delta) => handleDoMove('x', delta)}
                         size={dialSize}
                         sensitivity={1.0}
                         color="#20c997"
@@ -372,7 +433,8 @@ function EtchASketch() {
                 <div className="dial-wrapper dial-right">
                     <RotaryDial
                         label="Y"
-                        onChange={handleYChange}
+                        value={rotations.y}
+                        onRotate={(delta) => handleDoMove('y', delta)}
                         size={dialSize}
                         sensitivity={1.0}
                         color="#17a2b8"
@@ -409,9 +471,9 @@ function EtchASketch() {
                             className="custom-range"
                         />
                         <div className="d-flex justify-content-between mt-2">
-                            <small className="text-muted">Fine (more rotations)</small>
+                            <small className="text-muted">Fine</small>
                             <small className="text-primary font-weight-bold">{resolution.toFixed(3)}</small>
-                            <small className="text-muted">Coarse (fewer rotations)</small>
+                            <small className="text-muted">Coarse</small>
                         </div>
                     </Form.Group>
 
@@ -429,45 +491,39 @@ function EtchASketch() {
                             step={0.25}
                             value={cursorSize}
                             onChange={(e) => setCursorSize(parseFloat(e.target.value))}
-                            className="custom-range"
                         />
-                        <div className="d-flex justify-content-between mt-2">
-                            <small className="text-muted">Hidden</small>
-                            <small className="text-muted">Normal</small>
-                            <small className="text-muted">Large</small>
-                        </div>
                     </Form.Group>
 
                     <div className="border-top border-secondary pt-3 mt-3">
-                        <h6 className="text-muted mb-2">Resolution Presets</h6>
+                        <h6 className="text-muted mb-2">Presets</h6>
                         <div className="d-flex gap-2 flex-wrap">
                             <Button
                                 variant={resolution === 0.01 ? "primary" : "outline-secondary"}
                                 size="sm"
                                 onClick={() => setResolution(0.01)}
                             >
-                                Ultra Fine (~100 rotations)
+                                Ultra Fine
                             </Button>
                             <Button
                                 variant={resolution === 0.02 ? "primary" : "outline-secondary"}
                                 size="sm"
                                 onClick={() => setResolution(0.02)}
                             >
-                                Fine (~50 rotations)
+                                Fine
                             </Button>
                             <Button
                                 variant={resolution === 0.04 ? "primary" : "outline-secondary"}
                                 size="sm"
                                 onClick={() => setResolution(0.04)}
                             >
-                                Medium (~25 rotations)
+                                Medium
                             </Button>
                             <Button
                                 variant={resolution === 0.08 ? "primary" : "outline-secondary"}
                                 size="sm"
                                 onClick={() => setResolution(0.08)}
                             >
-                                Coarse (~12 rotations)
+                                Coarse
                             </Button>
                         </div>
                     </div>

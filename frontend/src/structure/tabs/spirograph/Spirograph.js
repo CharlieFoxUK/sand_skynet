@@ -1,9 +1,10 @@
 import React, { Component } from 'react';
-import { Button, Card, Form, ButtonGroup, Row, Col } from 'react-bootstrap';
-import { Play, Pause, ArrowRepeat, Upload, Download } from 'react-bootstrap-icons';
+import { Button, Card, Form, ButtonGroup } from 'react-bootstrap';
+import { Play, Pause, ArrowRepeat, Upload, Download, Plus, Trash } from 'react-bootstrap-icons';
 import { connect } from 'react-redux';
 import { getSettings } from '../settings/selector';
-import { calculateCanvasSize } from '../../../utils/canvasSize';
+import { getTableConfig, getCanvasDisplaySize, getCornerCoordinates, formatCoordinate } from '../../../utils/tableConfig';
+import { generateGCode, uploadGCode as uploadGCodeUtil, downloadGCode as downloadGCodeUtil, CoordinateType } from '../../../utils/gcodeGenerator';
 import './Spirograph.scss';
 
 const mapStateToProps = (state) => ({
@@ -13,26 +14,20 @@ const mapStateToProps = (state) => ({
 class Spirograph extends Component {
     constructor(props) {
         super(props);
-        const initialSize = calculateCanvasSize({ footerHeight: 280 });
         this.canvasRef = React.createRef();
         this.animationRef = null;
 
         this.state = {
-            displaySize: initialSize.width,
-            // Fixed gear (ring)
+            maxDisplaySize: 600,
             fixedTeeth: 96,
-            // Moving gear
             movingTeeth: 36,
-            // Pen position (0 = center, 1 = edge of moving gear)
             penPosition: 0.8,
-            // Mode: 'inside' (hypotrochoid) or 'outside' (epitrochoid)
             mode: 'inside',
-            // Animation
             isPlaying: false,
             currentAngle: 0,
             speed: 2,
-            // Drawing
             points: [],
+            layers: [], // Store completed patterns: { points: [], color: string }
             showGears: true,
             lineColor: '#20c997',
             drawingName: '',
@@ -47,10 +42,15 @@ class Spirograph extends Component {
         this.redrawCanvas();
 
         this.handleResize = () => {
-            const newSize = calculateCanvasSize({ footerHeight: 280 });
-            this.setState({ displaySize: newSize.width });
+            const viewportHeight = window.innerHeight;
+            const viewportWidth = window.innerWidth;
+            const availableHeight = viewportHeight - 350;
+            const availableWidth = viewportWidth - 350;
+            const maxSize = Math.min(availableWidth, availableHeight, 800);
+            this.setState({ maxDisplaySize: Math.max(300, maxSize) });
         };
         window.addEventListener('resize', this.handleResize);
+        this.handleResize();
     }
 
     componentWillUnmount() {
@@ -67,33 +67,28 @@ class Spirograph extends Component {
             prevState.mode !== this.state.mode ||
             prevState.showGears !== this.state.showGears ||
             prevState.points !== this.state.points ||
+            prevState.layers !== this.state.layers ||
             prevState.currentAngle !== this.state.currentAngle) {
             this.redrawCanvas();
         }
     }
 
-    // Calculate spirograph point at given angle
     getSpirographPoint = (angle) => {
         const { fixedTeeth, movingTeeth, penPosition, mode } = this.state;
         const centerX = this.internalSize / 2;
         const centerY = this.internalSize / 2;
 
-        // Scale to fit canvas
         const maxRadius = this.internalSize / 2 - 40;
-
-        // Calculate radii based on teeth (proportional)
-        const R = maxRadius * 0.7; // Fixed gear radius
-        const r = R * (movingTeeth / fixedTeeth); // Moving gear radius
-        const d = r * penPosition; // Pen distance from center of moving gear
+        const R = maxRadius * 0.7;
+        const r = R * (movingTeeth / fixedTeeth);
+        const d = r * penPosition;
 
         let x, y;
 
         if (mode === 'inside') {
-            // Hypotrochoid: moving gear inside fixed gear
             x = (R - r) * Math.cos(angle) + d * Math.cos(((R - r) / r) * angle);
             y = (R - r) * Math.sin(angle) - d * Math.sin(((R - r) / r) * angle);
         } else {
-            // Epitrochoid: moving gear outside fixed gear
             x = (R + r) * Math.cos(angle) - d * Math.cos(((R + r) / r) * angle);
             y = (R + r) * Math.sin(angle) - d * Math.sin(((R + r) / r) * angle);
         }
@@ -104,7 +99,6 @@ class Spirograph extends Component {
         };
     }
 
-    // Get the position and rotation of the moving gear
     getMovingGearState = (angle) => {
         const { fixedTeeth, movingTeeth, mode } = this.state;
         const centerX = this.internalSize / 2;
@@ -133,7 +127,7 @@ class Spirograph extends Component {
         const ctx = this.ctx;
         if (!ctx) return;
 
-        const { fixedTeeth, movingTeeth, showGears, points, currentAngle, lineColor, penPosition, mode } = this.state;
+        const { fixedTeeth, movingTeeth, showGears, points, layers, currentAngle, lineColor, penPosition, mode } = this.state;
         const size = this.internalSize;
         const centerX = size / 2;
         const centerY = size / 2;
@@ -142,11 +136,24 @@ class Spirograph extends Component {
         const R = maxRadius * 0.7;
         const r = R * (movingTeeth / fixedTeeth);
 
-        // Clear canvas
         ctx.fillStyle = '#0d0d0d';
         ctx.fillRect(0, 0, size, size);
 
-        // Draw the pattern
+        // Draw saved layers first
+        layers.forEach(layer => {
+            if (layer.points.length > 1) {
+                ctx.beginPath();
+                ctx.strokeStyle = layer.color;
+                ctx.lineWidth = 2;
+                ctx.moveTo(layer.points[0].x, layer.points[0].y);
+                for (let i = 1; i < layer.points.length; i++) {
+                    ctx.lineTo(layer.points[i].x, layer.points[i].y);
+                }
+                ctx.stroke();
+            }
+        });
+
+        // Draw current active pattern
         if (points.length > 1) {
             ctx.beginPath();
             ctx.strokeStyle = lineColor;
@@ -158,19 +165,15 @@ class Spirograph extends Component {
             ctx.stroke();
         }
 
-        // Draw gears if enabled
         if (showGears) {
-            // Draw fixed gear (ring)
             ctx.strokeStyle = 'rgba(100, 100, 100, 0.6)';
             ctx.lineWidth = 3;
             ctx.beginPath();
 
             if (mode === 'inside') {
-                // Inner ring - draw teeth pointing inward
                 ctx.arc(centerX, centerY, R, 0, 2 * Math.PI);
                 ctx.stroke();
 
-                // Draw teeth marks
                 ctx.strokeStyle = 'rgba(80, 80, 80, 0.5)';
                 ctx.lineWidth = 1;
                 for (let i = 0; i < fixedTeeth; i++) {
@@ -182,11 +185,9 @@ class Spirograph extends Component {
                     ctx.stroke();
                 }
             } else {
-                // Outer mode - fixed gear is smaller, in center
                 ctx.arc(centerX, centerY, R, 0, 2 * Math.PI);
                 ctx.stroke();
 
-                // Draw teeth marks pointing outward
                 ctx.strokeStyle = 'rgba(80, 80, 80, 0.5)';
                 ctx.lineWidth = 1;
                 for (let i = 0; i < fixedTeeth; i++) {
@@ -199,7 +200,6 @@ class Spirograph extends Component {
                 }
             }
 
-            // Draw moving gear
             const gearState = this.getMovingGearState(currentAngle);
 
             ctx.strokeStyle = 'rgba(32, 201, 151, 0.7)';
@@ -208,7 +208,6 @@ class Spirograph extends Component {
             ctx.arc(gearState.x, gearState.y, r, 0, 2 * Math.PI);
             ctx.stroke();
 
-            // Draw teeth on moving gear
             ctx.strokeStyle = 'rgba(32, 201, 151, 0.4)';
             ctx.lineWidth = 1;
             for (let i = 0; i < movingTeeth; i++) {
@@ -220,7 +219,6 @@ class Spirograph extends Component {
                 ctx.stroke();
             }
 
-            // Draw pen hole
             const penX = gearState.x + r * penPosition * Math.cos(gearState.rotation);
             const penY = gearState.y + r * penPosition * Math.sin(gearState.rotation);
 
@@ -229,7 +227,6 @@ class Spirograph extends Component {
             ctx.arc(penX, penY, 5, 0, 2 * Math.PI);
             ctx.fill();
 
-            // Draw line from gear center to pen
             ctx.strokeStyle = 'rgba(255, 107, 107, 0.5)';
             ctx.lineWidth = 1;
             ctx.beginPath();
@@ -243,8 +240,6 @@ class Spirograph extends Component {
         if (!this.state.isPlaying) return;
 
         const { speed, fixedTeeth, movingTeeth } = this.state;
-
-        // Calculate how many rotations needed for complete pattern
         const gcd = this.gcd(fixedTeeth, movingTeeth);
         const rotationsNeeded = movingTeeth / gcd;
         const maxAngle = rotationsNeeded * 2 * Math.PI;
@@ -253,7 +248,6 @@ class Spirograph extends Component {
             const newAngle = prevState.currentAngle + (speed * 0.02);
             const newPoint = this.getSpirographPoint(newAngle);
 
-            // Check if pattern is complete
             if (newAngle >= maxAngle) {
                 return {
                     isPlaying: false,
@@ -271,15 +265,12 @@ class Spirograph extends Component {
         });
     }
 
-    gcd = (a, b) => {
-        return b === 0 ? a : this.gcd(b, a % b);
-    }
+    gcd = (a, b) => b === 0 ? a : this.gcd(b, a % b);
 
     togglePlay = () => {
         this.setState(prevState => {
             const newPlaying = !prevState.isPlaying;
             if (newPlaying) {
-                // Start animation
                 setTimeout(() => this.animate(), 0);
             }
             return { isPlaying: newPlaying };
@@ -297,16 +288,39 @@ class Spirograph extends Component {
         });
     }
 
-    // Generate complete pattern instantly
+    addLayer = () => {
+        const { points, lineColor } = this.state;
+        if (points.length === 0) return;
+
+        this.setState(prevState => ({
+            layers: [...prevState.layers, { points: [...points], color: lineColor }],
+            // Do NOT reset the gear parameters, just reset the drawing state so they can change settings for the next layer
+            points: [],
+            currentAngle: 0,
+            isPlaying: false
+        }));
+    }
+
+    clearLayers = () => {
+        if (this.animationRef) {
+            cancelAnimationFrame(this.animationRef);
+        }
+        this.setState({
+            layers: [],
+            points: [],
+            currentAngle: 0,
+            isPlaying: false
+        });
+    }
+
     generateComplete = () => {
         const { fixedTeeth, movingTeeth } = this.state;
-
         const gcd = this.gcd(fixedTeeth, movingTeeth);
         const rotationsNeeded = movingTeeth / gcd;
         const maxAngle = rotationsNeeded * 2 * Math.PI;
 
         const points = [];
-        const steps = rotationsNeeded * 360; // High resolution
+        const steps = rotationsNeeded * 360;
 
         for (let i = 0; i <= steps; i++) {
             const angle = (i / steps) * maxAngle;
@@ -320,115 +334,87 @@ class Spirograph extends Component {
         });
     }
 
-    generateGCode = () => {
-        const { points } = this.state;
-        if (points.length < 2) return '';
+    // Convert internal canvas coordinates to center-normalized (-1 to 1)
+    internalToCenterNormalized = (point) => {
+        const normX = (point.x - this.internalSize / 2) / (this.internalSize / 2);
+        const normY = -(point.y - this.internalSize / 2) / (this.internalSize / 2); // Flip Y
+        return { x: normX, y: normY };
+    }
 
-        const device = this.props.settings.device || {};
-        const drawWidth = parseFloat(device.width?.value) || 100;
-        const drawHeight = parseFloat(device.height?.value) || 100;
-        const tableSize = Math.min(drawWidth, drawHeight);
-        const centerX = drawWidth / 2;
-        const centerY = drawHeight / 2;
+    handleGenerateGCode = () => {
+        const { points, layers } = this.state;
 
-        let gcode = '';
-        let firstMove = true;
+        let allPaths = [];
 
-        // Normalize points to table coordinates
-        const normalizedPoints = points.map(p => {
-            const normX = (p.x - this.internalSize / 2) / (this.internalSize / 2);
-            const normY = (p.y - this.internalSize / 2) / (this.internalSize / 2);
-            return {
-                x: normX * (tableSize / 2) * 0.9 + centerX,
-                y: -normY * (tableSize / 2) * 0.9 + centerY
-            };
+        // Add saved layers
+        layers.forEach(layer => {
+            if (layer.points.length > 1) {
+                allPaths.push(layer.points.map(p => this.internalToCenterNormalized(p)));
+            }
         });
 
-        // First point - rapid move
-        const start = normalizedPoints[0];
-        gcode += `G0 X${start.x.toFixed(3)} Y${start.y.toFixed(3)} ; TYPE: PRE-TRANSFORMED\n`;
-
-        // Draw path
-        for (let i = 1; i < normalizedPoints.length; i++) {
-            const p = normalizedPoints[i];
-            gcode += `G1 X${p.x.toFixed(3)} Y${p.y.toFixed(3)}`;
-            if (firstMove) {
-                gcode += ` F${this.state.feedrate}`;
-                firstMove = false;
-            }
-            gcode += '\n';
+        // Add current points
+        if (points.length > 1) {
+            allPaths.push(points.map(p => this.internalToCenterNormalized(p)));
         }
 
-        return gcode;
+        if (allPaths.length === 0) return '';
+
+        const config = getTableConfig(this.props.settings);
+
+        return generateGCode(allPaths, config, {
+            feedrate: this.state.feedrate,
+            coordinateType: CoordinateType.CENTER_NORMALIZED
+        });
     }
 
-    sendToTable = () => {
-        const gcode = this.generateGCode();
+    sendToTable = async () => {
+        const gcode = this.handleGenerateGCode();
         if (!gcode) {
             alert('Generate a pattern first!');
             return;
         }
 
-        const blob = new Blob([gcode], { type: 'text/plain' });
-        const formData = new FormData();
-
-        let filename = this.state.drawingName.trim() || `spirograph_${Date.now()}`;
-        if (!filename.toLowerCase().endsWith('.gcode')) {
-            filename += '.gcode';
+        try {
+            await uploadGCodeUtil(gcode, this.state.drawingName || `spirograph_${Date.now()}`);
+        } catch (error) {
+            console.error('Error:', error);
+            alert("Error sending drawing.");
         }
-
-        formData.append('file', blob, filename);
-
-        fetch('/api/upload/', {
-            method: 'POST',
-            body: formData
-        })
-            .then(response => response.json())
-            .then(() => alert('Spirograph sent to table!'))
-            .catch(() => alert('Error sending drawing.'));
     }
 
-    downloadGCode = () => {
-        const gcode = this.generateGCode();
+    handleDownload = () => {
+        const gcode = this.handleGenerateGCode();
         if (!gcode) {
             alert('Generate a pattern first!');
             return;
         }
-
-        const blob = new Blob([gcode], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-
-        let filename = this.state.drawingName.trim() || `spirograph_${Date.now()}`;
-        if (!filename.toLowerCase().endsWith('.gcode')) {
-            filename += '.gcode';
-        }
-
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
+        downloadGCodeUtil(gcode, this.state.drawingName || `spirograph_${Date.now()}`);
     }
 
     render() {
         const {
-            displaySize, fixedTeeth, movingTeeth, penPosition, mode,
-            isPlaying, showGears, speed, lineColor
+            maxDisplaySize, fixedTeeth, movingTeeth, penPosition, mode,
+            isPlaying, showGears, speed, lineColor, points
         } = this.state;
 
-        // Calculate pattern complexity info
+        const config = getTableConfig(this.props.settings);
+        const displaySize = getCanvasDisplaySize(config, {
+            maxWidth: maxDisplaySize,
+            maxHeight: maxDisplaySize
+        });
+        const corners = getCornerCoordinates(config);
+
         const gcd = this.gcd(fixedTeeth, movingTeeth);
         const petals = movingTeeth / gcd;
 
         return (
             <div className="spirograph-page">
-                {/* Settings Panel */}
                 <Card className="spirograph-settings bg-dark text-white">
                     <Card.Header>
                         <h5 className="mb-0">🎡 Spirograph</h5>
                     </Card.Header>
                     <Card.Body>
-                        {/* Mode Selection */}
                         <Form.Group className="mb-3">
                             <Form.Label className="small">Mode</Form.Label>
                             <ButtonGroup className="w-100">
@@ -449,7 +435,6 @@ class Spirograph extends Component {
                             </ButtonGroup>
                         </Form.Group>
 
-                        {/* Fixed Gear */}
                         <Form.Group className="mb-3">
                             <Form.Label className="small">
                                 Fixed Gear Teeth: <strong>{fixedTeeth}</strong>
@@ -464,7 +449,6 @@ class Spirograph extends Component {
                             />
                         </Form.Group>
 
-                        {/* Moving Gear */}
                         <Form.Group className="mb-3">
                             <Form.Label className="small">
                                 Moving Gear Teeth: <strong>{movingTeeth}</strong>
@@ -479,7 +463,6 @@ class Spirograph extends Component {
                             />
                         </Form.Group>
 
-                        {/* Pen Position */}
                         <Form.Group className="mb-3">
                             <Form.Label className="small">
                                 Pen Position: <strong>{(penPosition * 100).toFixed(0)}%</strong>
@@ -493,11 +476,10 @@ class Spirograph extends Component {
                                 onChange={(e) => { this.reset(); this.setState({ penPosition: parseFloat(e.target.value) }); }}
                             />
                             <small className="text-muted">
-                                0% = center, 100% = edge, &gt;100% = outside gear
+                                0% = center, 100% = edge, &gt;100% = outside
                             </small>
                         </Form.Group>
 
-                        {/* Animation Speed */}
                         <Form.Group className="mb-3">
                             <Form.Label className="small">Speed: {speed}x</Form.Label>
                             <Form.Control
@@ -510,13 +492,11 @@ class Spirograph extends Component {
                             />
                         </Form.Group>
 
-                        {/* Pattern Info */}
                         <div className="mb-3 p-2 bg-secondary rounded small">
-                            <div>Pattern will have <strong>{petals}</strong> petals/loops</div>
+                            <div>Pattern will have <strong>{petals}</strong> petals</div>
                             <div className="text-muted">GCD: {gcd}, Ratio: {fixedTeeth}:{movingTeeth}</div>
                         </div>
 
-                        {/* Controls */}
                         <div className="d-flex gap-2 mb-3">
                             <Button
                                 variant={isPlaying ? 'warning' : 'success'}
@@ -525,7 +505,7 @@ class Spirograph extends Component {
                             >
                                 {isPlaying ? <><Pause /> Pause</> : <><Play /> Draw</>}
                             </Button>
-                            <Button variant="outline-secondary" onClick={this.reset}>
+                            <Button variant="outline-secondary" onClick={this.reset} title="Reset Parameters">
                                 <ArrowRepeat />
                             </Button>
                         </div>
@@ -538,7 +518,27 @@ class Spirograph extends Component {
                             Generate Instantly
                         </Button>
 
-                        {/* Options */}
+                        {/* Layer Controls */}
+                        <div className="d-flex gap-2 mb-3">
+                            <Button
+                                variant="outline-light"
+                                className="flex-grow-1"
+                                onClick={this.addLayer}
+                                disabled={points.length === 0}
+                                title="Add current pattern as a new layer"
+                            >
+                                <Plus /> Add Layer
+                            </Button>
+
+                            <Button
+                                variant="outline-danger"
+                                onClick={this.clearLayers}
+                                title="Clear All Layers"
+                            >
+                                <Trash />
+                            </Button>
+                        </div>
+
                         <Form.Group className="mb-3">
                             <Form.Check
                                 type="checkbox"
@@ -560,7 +560,6 @@ class Spirograph extends Component {
 
                         <hr className="border-secondary" />
 
-                        {/* Export */}
                         <Form.Group className="mb-2">
                             <Form.Label className="small">Drawing Name</Form.Label>
                             <Form.Control
@@ -574,7 +573,7 @@ class Spirograph extends Component {
                         </Form.Group>
 
                         <div className="d-grid gap-2">
-                            <Button variant="info" onClick={this.downloadGCode}>
+                            <Button variant="info" onClick={this.handleDownload}>
                                 <Download className="me-2" /> Download
                             </Button>
                             <Button variant="success" onClick={this.sendToTable}>
@@ -584,22 +583,33 @@ class Spirograph extends Component {
                     </Card.Body>
                 </Card>
 
-                {/* Canvas Area */}
                 <div className="spirograph-canvas-area">
-                    <canvas
-                        ref={this.canvasRef}
-                        width={this.internalSize}
-                        height={this.internalSize}
-                        style={{
-                            width: displaySize,
-                            height: displaySize,
-                            borderRadius: '12px',
-                            border: '3px solid #20c997',
-                            boxShadow: '0 0 40px rgba(32, 201, 151, 0.2)'
-                        }}
-                    />
+                    <div className="canvas-container" style={{
+                        width: Math.min(displaySize.width, displaySize.height),
+                        height: Math.min(displaySize.width, displaySize.height),
+                        position: 'relative'
+                    }}>
+                        {/* Corner coordinates */}
+                        <div className="corner-label top-left">{formatCoordinate(corners.topLeft)}</div>
+                        <div className="corner-label top-right">{formatCoordinate(corners.topRight)}</div>
+                        <div className="corner-label bottom-left">{formatCoordinate(corners.bottomLeft)}</div>
+                        <div className="corner-label bottom-right">{formatCoordinate(corners.bottomRight)}</div>
+
+                        <canvas
+                            ref={this.canvasRef}
+                            width={this.internalSize}
+                            height={this.internalSize}
+                            style={{
+                                width: '100%',
+                                height: '100%',
+                                borderRadius: '12px',
+                                border: '3px solid #20c997',
+                                boxShadow: '0 0 40px rgba(32, 201, 151, 0.2)'
+                            }}
+                        />
+                    </div>
                     <p className="text-muted text-center mt-2 small">
-                        Adjust the gears and click "Draw" to animate, or "Generate Instantly"
+                        Adjust the gears and click "Draw" to animate. Click "Add Layer" to keep the pattern.
                     </p>
                 </div>
             </div>

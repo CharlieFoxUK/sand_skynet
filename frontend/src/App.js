@@ -8,10 +8,9 @@ import Toasts from './structure/Toasts';
 function App() {
   return (
     <div className="App">
-        <TopBar/>
-        <Content/>
-        <Footer/>
-        <Toasts/>
+      <TopBar />
+      <Content />
+      <Toasts />
     </div>
   );
 }

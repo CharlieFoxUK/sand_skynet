@@ -34,7 +34,13 @@ class Content extends Component {
 
 
     render() {
-        return <div className="max-width m-auto text-light pt-3 pb-5 mh100">
+        // For Kaleidoscope, Spirograph, PatternBuilder, and Canvas we want full width layout
+        const isFullWidthObj = ['kaleidoscope', 'spirograph', 'patternBuilder', 'canvas'].includes(this.props.tab);
+        const containerClasses = isFullWidthObj
+            ? "w-100 text-light pb-5 mh100"
+            : "max-width m-auto text-light pt-3 pb-5 mh100";
+
+        return <div className={containerClasses}>
             <DrawingDataDownloader />
             <PlaylistDataDownloader />
 

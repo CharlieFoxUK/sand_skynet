@@ -55,14 +55,7 @@ class PatternBuilder extends Component {
 
         try {
             const layersWithPoints = this.getLayersWithPoints();
-            const device = settings?.device || {};
-            const gcode = generateGCode(layersWithPoints, {
-                tableWidth: parseFloat(device.width?.value) || 300,
-                tableHeight: parseFloat(device.height?.value) || 300,
-                offsetX: parseFloat(device.offset_x?.value) || 0,
-                offsetY: parseFloat(device.offset_y?.value) || 0,
-                feedrate
-            });
+            const gcode = generateGCode(layersWithPoints, settings, { feedrate });
 
             await uploadGCode(gcode, drawingName || `pattern_${Date.now()}`);
         } catch (error) {
@@ -81,14 +74,7 @@ class PatternBuilder extends Component {
         }
 
         const layersWithPoints = this.getLayersWithPoints();
-        const device = settings?.device || {};
-        const gcode = generateGCode(layersWithPoints, {
-            tableWidth: parseFloat(device.width?.value) || 300,
-            tableHeight: parseFloat(device.height?.value) || 300,
-            offsetX: parseFloat(device.offset_x?.value) || 0,
-            offsetY: parseFloat(device.offset_y?.value) || 0,
-            feedrate
-        });
+        const gcode = generateGCode(layersWithPoints, settings, { feedrate });
 
         const blob = new Blob([gcode], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);

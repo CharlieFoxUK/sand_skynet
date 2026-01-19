@@ -1,13 +1,14 @@
 import React, { Component } from 'react';
-import { Button, Row, Col, Card, Form, InputGroup } from 'react-bootstrap';
-import { Trash, Upload, Download, ArrowClockwise } from 'react-bootstrap-icons';
+import { Button, Form, InputGroup } from 'react-bootstrap';
+import { Trash, Upload, Download } from 'react-bootstrap-icons';
 import { connect } from 'react-redux';
 import { getSettings } from '../settings/selector';
-import { settingsSave } from '../../../sockets/sEmits';
 import { settingsNow } from '../../../sockets/sCallbacks';
-import { cloneDict } from '../../../utils/dictUtils';
-import { updateAllSettings, updateSetting } from '../settings/Settings.slice';
-import { calculateCanvasSize } from '../../../utils/canvasSize';
+import { updateAllSettings } from '../settings/Settings.slice';
+import { getTableConfig, getCanvasDisplaySize, getCornerCoordinates, formatCoordinate } from '../../../utils/tableConfig';
+import { generateGCode, uploadGCode, downloadGCode, CoordinateType } from '../../../utils/gcodeGenerator';
+
+import './Canvas.scss';
 
 const mapStateToProps = (state) => {
     return {
@@ -17,7 +18,6 @@ const mapStateToProps = (state) => {
 
 const mapDispatchToProps = (dispatch) => {
     return {
-        updateSetting: (val) => dispatch(updateSetting(val)),
         updateAllSettings: (val) => dispatch(updateAllSettings(val))
     }
 }
@@ -26,7 +26,6 @@ class Canvas extends Component {
     constructor(props) {
         super(props);
         this.canvasRef = React.createRef();
-        const initialSize = calculateCanvasSize({ footerHeight: 250 });
         this.state = {
             isDrawing: false,
             lastX: 0,
@@ -34,7 +33,7 @@ class Canvas extends Component {
             paths: [], // Store paths for GCode generation
             drawingName: "",
             feedrate: 2000,
-            displaySize: initialSize.width
+            maxDisplaySize: 600
         };
     }
 
@@ -46,16 +45,29 @@ class Canvas extends Component {
 
         // Handle window resize
         this.handleResize = () => {
-            const newSize = calculateCanvasSize({ footerHeight: 250 });
-            this.setState({ displaySize: newSize.width });
+            const viewportHeight = window.innerHeight;
+            const viewportWidth = window.innerWidth;
+            const isMobile = viewportWidth < 992;
+
+            // Available space calculation
+            // Sidebar is 320px on desktop
+            const sidebarWidth = isMobile ? 0 : 320;
+            const availableWidth = viewportWidth - sidebarWidth - 40; // 40px margin
+            const availableHeight = viewportHeight - 100; // Header offset
+
+            const maxSize = Math.min(availableWidth, availableHeight, 900);
+            this.setState({ maxDisplaySize: Math.max(300, maxSize) });
         };
         window.addEventListener('resize', this.handleResize);
+        this.handleResize();
 
-        // Fetch latest settings from backend to ensure persistence
+        // Fetch latest settings from backend
         settingsNow((data) => {
             try {
                 const parsed = JSON.parse(data);
                 this.props.updateAllSettings(parsed);
+                // Re-run resize after getting settings as table config affects generic size
+                setTimeout(this.handleResize, 100);
             } catch (e) {
                 console.error("Error parsing settings:", e);
             }
@@ -72,7 +84,7 @@ class Canvas extends Component {
             isDrawing: true,
             lastX: offsetX,
             lastY: offsetY,
-            paths: [...this.state.paths, [{ x: offsetX, y: offsetY }]] // Start new path
+            paths: [...this.state.paths, [{ x: offsetX, y: offsetY }]]
         });
     }
 
@@ -85,7 +97,6 @@ class Canvas extends Component {
         this.ctx.lineTo(offsetX, offsetY);
         this.ctx.stroke();
 
-        // Add point to current path
         const newPaths = [...this.state.paths];
         newPaths[newPaths.length - 1].push({ x: offsetX, y: offsetY });
 
@@ -101,16 +112,21 @@ class Canvas extends Component {
     }
 
     getCoordinates = (e) => {
+        const canvas = this.canvasRef.current;
+        const rect = canvas.getBoundingClientRect();
+        // Scale factor: internal resolution is 2x display size
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+
         if (e.touches && e.touches.length > 0) {
-            const rect = this.canvasRef.current.getBoundingClientRect();
             return {
-                offsetX: e.touches[0].clientX - rect.left,
-                offsetY: e.touches[0].clientY - rect.top
+                offsetX: (e.touches[0].clientX - rect.left) * scaleX,
+                offsetY: (e.touches[0].clientY - rect.top) * scaleY
             };
         }
         return {
-            offsetX: e.nativeEvent.offsetX,
-            offsetY: e.nativeEvent.offsetY
+            offsetX: e.nativeEvent.offsetX * scaleX,
+            offsetY: e.nativeEvent.offsetY * scaleY
         };
     }
 
@@ -119,384 +135,143 @@ class Canvas extends Component {
         this.setState({ paths: [] });
     }
 
-    updateSetting = (key, value) => {
-        // key is like 'orientation_origin', we need 'device.orientation_origin.value'
-        const fullKey = "device." + key + ".value";
-        this.props.updateSetting([fullKey, value]);
-    }
+    handleGenerateGCode = () => {
+        const config = getTableConfig(this.props.settings);
+        const canvas = this.canvasRef.current;
 
-    rotateCanvas = () => {
-        const device = this.props.settings.device || {};
-        // Use local state as base if available to ensure continuity
-        const currentRotation = this.state.debugRotation !== undefined
-            ? this.state.debugRotation
-            : (parseInt(device.canvas_rotation ? device.canvas_rotation.value : 0) || 0);
-
-        const newRotation = (currentRotation + 90) % 360;
-
-        console.log("Rotating to:", newRotation);
-        this.setState({ debugRotation: newRotation });
-        this.updateSetting('canvas_rotation', newRotation);
-
-        // Persist to backend
-        const newSettings = cloneDict(this.props.settings);
-        if (newSettings.device) {
-            if (!newSettings.device.canvas_rotation) {
-                newSettings.device.canvas_rotation = { value: 0 };
-            }
-            newSettings.device.canvas_rotation.value = newRotation;
-            settingsSave(newSettings, false);
-        }
-    }
-
-    generateGCode = () => {
-        // Get settings or defaults
-        const device = this.props.settings.device || {};
-        const drawWidth = parseFloat(device.width ? device.width.value : 100) || 100;
-        const drawHeight = parseFloat(device.height ? device.height.value : 100) || 100;
-        const offX = parseFloat(device.offset_x ? device.offset_x.value : 0) || 0;
-        const offY = parseFloat(device.offset_y ? device.offset_y.value : 0) || 0;
-        const rotation = parseInt(device.canvas_rotation ? device.canvas_rotation.value : 0) || 0;
-
-        const canvasWidth = this.canvasRef.current.width;
-        const canvasHeight = this.canvasRef.current.height;
-
-        let gcode = "";
-        let firstMove = true;
-        let firstCut = true;
-
-        this.state.paths.forEach(path => {
-            if (path.length === 0) return;
-
-            // Helper to transform coordinates
-            const transform = (p) => {
-                let xNorm = p.x / canvasWidth;
-                let yNorm = p.y / canvasHeight; // 0 at top, 1 at bottom (Screen Coords)
-
-                let xPhysNorm, yPhysNorm;
-
-                // Apply Rotation Logic
-                // Apply Rotation Logic
-                switch (rotation) {
-                    case 90:
-                        xPhysNorm = yNorm;
-                        yPhysNorm = xNorm;
-                        break;
-                    case 180:
-                        xPhysNorm = 1 - xNorm;
-                        yPhysNorm = yNorm;
-                        break;
-                    case 270:
-                        xPhysNorm = 1 - yNorm;
-                        yPhysNorm = 1 - xNorm;
-                        break;
-                    case 0:
-                    default:
-                        xPhysNorm = xNorm;
-                        yPhysNorm = 1 - yNorm;
-                        break;
-                }
-
-                // Scale to Physical Dimensions AND ADD OFFSETS
-                // Since we are sending PRE-TRANSFORMED, we must output Machine Coordinates
-                const xFinal = xPhysNorm * drawWidth + offX;
-                const yFinal = yPhysNorm * drawHeight + offY;
-
-                if (isNaN(xFinal) || isNaN(yFinal)) {
-                    console.error("NaN coordinates detected", p, xNorm, yNorm);
-                    return { x: "0.000", y: "0.000" }; // Safe fallback
-                }
-
-                return { x: xFinal.toFixed(3), y: yFinal.toFixed(3) };
-            };
-
-            // Move to start
-            const start = transform(path[0]);
-            gcode += `G0 X${start.x} Y${start.y}`;
-            if (firstMove) {
-                gcode += " ; TYPE: PRE-TRANSFORMED";
-                firstMove = false;
-            }
-            gcode += "\n";
-
-            for (let i = 1; i < path.length; i++) {
-                const p = transform(path[i]);
-                gcode += `G1 X${p.x} Y${p.y}`;
-                if (firstCut) {
-                    gcode += ` F${this.state.feedrate}`;
-                    firstCut = false;
-                }
-                gcode += "\n";
-            }
+        return generateGCode(this.state.paths, config, {
+            feedrate: this.state.feedrate,
+            coordinateType: CoordinateType.CANVAS,
+            canvasSize: { width: canvas.width, height: canvas.height }
         });
-
-        return gcode;
     }
 
-    sendToTable = () => {
-        const gcode = this.generateGCode();
-        const blob = new Blob([gcode], { type: 'text/plain' });
-        const formData = new FormData();
-
-        let filename = this.state.drawingName.trim();
-        if (filename === "") {
-            filename = `drawing_${Date.now()} `;
+    sendToTable = async () => {
+        const gcode = this.handleGenerateGCode();
+        try {
+            await uploadGCode(gcode, this.state.drawingName || `canvas_${Date.now()}`);
+            window.showToast?.(`Drawing sent to table!`);
+        } catch (error) {
+            console.error('Error:', error);
+            alert("Error sending drawing.");
         }
-        // Ensure extension
-        if (!filename.toLowerCase().endsWith(".gcode")) {
-            filename += ".gcode";
-        }
-
-        formData.append('file', blob, filename);
-
-        fetch('/api/upload/', {
-            method: 'POST',
-            body: formData
-        })
-            .then(response => response.json())
-            .then(data => {
-                console.log('Success:', data);
-                // Maybe show a toast or notification
-                alert("Drawing sent to table!");
-            })
-            .catch((error) => {
-                console.error('Error:', error);
-                alert("Error sending drawing.");
-            });
     }
 
-    downloadGCode = () => {
-        const gcode = this.generateGCode();
-        const blob = new Blob([gcode], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-
-        let filename = this.state.drawingName.trim();
-        if (filename === "") {
-            filename = `drawing_${Date.now()} `;
-        }
-        if (!filename.toLowerCase().endsWith(".gcode")) {
-            filename += ".gcode";
-        }
-
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+    handleDownload = () => {
+        const gcode = this.handleGenerateGCode();
+        downloadGCode(gcode, this.state.drawingName || `canvas_${Date.now()}`);
     }
 
     render() {
         if (!this.props.settings || !this.props.settings.device) {
-            return <div className="text-center mt-5">Loading settings...</div>;
+            return <div className="text-center mt-5 text-white">Loading settings...</div>;
         }
 
-        const device = this.props.settings.device || {};
-        console.log("Canvas Render - Device Settings:", device);
-        console.log("Canvas Render - Rotation:", device.canvas_rotation);
+        const config = getTableConfig(this.props.settings);
+        const displaySize = getCanvasDisplaySize(config, {
+            maxWidth: this.state.maxDisplaySize,
+            maxHeight: this.state.maxDisplaySize
+        });
+        const corners = getCornerCoordinates(config);
 
-        const drawWidth = parseFloat(device.width ? device.width.value : 100) || 100;
-        const drawHeight = parseFloat(device.height ? device.height.value : 100) || 100;
-        const offX = parseFloat(device.offset_x ? device.offset_x.value : 0) || 0;
-        const offY = parseFloat(device.offset_y ? device.offset_y.value : 0) || 0;
-
-        // Use local debug rotation if available, otherwise Redux
-        let rotation = parseInt(device.canvas_rotation ? device.canvas_rotation.value : 0) || 0;
-        if (this.state.debugRotation !== undefined) {
-            rotation = this.state.debugRotation;
-        }
-
-        // Dynamic Canvas Dimensions
-        // If 90 or 270, swap W/H
-        const isRotated = rotation === 90 || rotation === 270;
-        const canvasWidth = isRotated ? drawHeight : drawWidth;
-        const canvasHeight = isRotated ? drawWidth : drawHeight;
-
-        // Calculate labels based on rotation
-        const getLabel = (xNorm, yNorm) => {
-            let xPhysNorm, yPhysNorm;
-
-            switch (rotation) {
-                case 90:
-                    xPhysNorm = yNorm;
-                    yPhysNorm = xNorm;
-                    break;
-                case 180:
-                    xPhysNorm = 1 - xNorm;
-                    yPhysNorm = yNorm;
-                    break;
-                case 270:
-                    xPhysNorm = 1 - yNorm;
-                    yPhysNorm = 1 - xNorm;
-                    break;
-                case 0:
-                default:
-                    xPhysNorm = xNorm;
-                    yPhysNorm = 1 - yNorm;
-                    break;
-            }
-
-            const xVal = xPhysNorm * drawWidth + offX;
-            const yVal = yPhysNorm * drawHeight + offY;
-
-            if (isNaN(xVal) || isNaN(yVal)) return "(Error)";
-
-            return `(${xVal.toFixed(0)}, ${yVal.toFixed(0)})`;
-        }
-
-        const tlLabel = getLabel(0, 0);
-        const trLabel = getLabel(1, 0);
-        const blLabel = getLabel(0, 1);
-        const brLabel = getLabel(1, 1);
-
-        // Axis Indicators
-        // 0: X Right, Y Up
-        // 90: X Down, Y Right
-        // 180: X Left, Y Down
-        // 270: X Up, Y Left
-
-        let xAxisStyle = { position: 'absolute', color: '#0dcaf0', fontWeight: 'bold' };
-        let yAxisStyle = { position: 'absolute', color: '#0dcaf0', fontWeight: 'bold' };
-        let xAxisText = "X Axis \u2192";
-        let yAxisText = "Y Axis \u2192";
-
-        switch (rotation) {
-            case 90:
-                // X is Down (Visual Vertical)
-                xAxisStyle = { ...xAxisStyle, top: '50%', right: '-45px', transform: 'translateY(-50%) rotate(90deg)' };
-                // Y is Right (Visual Horizontal)
-                yAxisStyle = { ...yAxisStyle, top: '-45px', left: '50%', transform: 'translateX(-50%)' };
-                break;
-            case 180:
-                // X is Left
-                xAxisStyle = { ...xAxisStyle, bottom: '-45px', left: '50%', transform: 'translateX(-50%) rotate(180deg)' };
-                // Y is Down
-                yAxisStyle = { ...yAxisStyle, top: '50%', left: '-45px', transform: 'translateY(-50%) rotate(90deg)' };
-                break;
-            case 270:
-                // X is Up
-                xAxisStyle = { ...xAxisStyle, top: '50%', left: '-45px', transform: 'translateY(-50%) rotate(-90deg)' };
-                // Y is Left
-                yAxisStyle = { ...yAxisStyle, bottom: '-45px', left: '50%', transform: 'translateX(-50%) rotate(180deg)' };
-                break;
-            case 0:
-            default:
-                // X is Right
-                xAxisStyle = { ...xAxisStyle, bottom: '-45px', left: '50%', transform: 'translateX(-50%)' };
-                // Y is Up
-                yAxisStyle = { ...yAxisStyle, top: '50%', left: '-45px', transform: 'translateY(-50%) rotate(-90deg)' };
-                break;
-        }
+        // Internal canvas resolution (higher for smooth drawing)
+        const internalWidth = Math.round(displaySize.width * 2);
+        const internalHeight = Math.round(displaySize.height * 2);
 
         return (
-            <div className="canvas-container">
-                <Card className="bg-secondary text-white mb-3">
-                    <Card.Header className="d-flex justify-content-between align-items-center">
+            <div className="canvas-layout">
+                {/* Sidebar */}
+                <div className="canvas-sidebar">
+                    <div className="canvas-sidebar-header">
                         <h2>Draw on Canvas</h2>
-                        <div>
-                            <span className="mr-3">Rot: {rotation}°</span>
-                            <Button variant="light" onClick={this.rotateCanvas}>
-                                <ArrowClockwise className="mr-2" /> Rotate 90°
+                    </div>
+
+                    <div className="canvas-sidebar-content">
+                        <p className="text-muted small mb-4">
+                            Draw freely below. Your strokes will be converted to G-code.
+                        </p>
+
+                        <div className="mb-3">
+                            <label className="form-label">Drawing Name</label>
+                            <InputGroup>
+                                <Form.Control
+                                    type="text"
+                                    placeholder="Enter name..."
+                                    value={this.state.drawingName}
+                                    onChange={(e) => this.setState({ drawingName: e.target.value })}
+                                />
+                            </InputGroup>
+                        </div>
+
+                        <div className="mb-4">
+                            <label className="form-label">Feedrate (mm/min)</label>
+                            <InputGroup>
+                                <Form.Control
+                                    type="number"
+                                    placeholder="2000"
+                                    value={this.state.feedrate}
+                                    onChange={(e) => this.setState({ feedrate: parseInt(e.target.value) || 2000 })}
+                                />
+                            </InputGroup>
+                        </div>
+
+                        <div className="d-grid gap-2">
+                            <Button variant="success" onClick={this.sendToTable} className="mb-2">
+                                <Upload className="mr-2" /> Send to Table
+                            </Button>
+
+                            <Button variant="info" onClick={this.handleDownload} className="mb-2">
+                                <Download className="mr-2" /> Download G-Code
+                            </Button>
+
+                            <hr className="border-secondary my-3" />
+
+                            <Button variant="outline-danger" onClick={this.clearCanvas}>
+                                <Trash className="mr-2" /> Clear Canvas
                             </Button>
                         </div>
-                    </Card.Header>
-                    <Card.Body className="text-center">
 
-                        <div style={{ position: 'relative', display: 'inline-block', marginTop: '40px', marginBottom: '60px' }}>
-                            {/* Axis Labels */}
-                            <div style={{ position: 'absolute', top: '-25px', left: '-10px', color: 'white' }}>
-                                {tlLabel}
+                        <div className="mt-4 pt-3 border-top border-secondary">
+                            <div className="text-muted small">
+                                Canvas Size: <span className="text-light">{config.drawWidth} × {config.drawHeight} mm</span>
                             </div>
-                            <div style={{ position: 'absolute', top: '-25px', right: '-10px', color: 'white' }}>
-                                {trLabel}
-                            </div>
-                            <div style={{ position: 'absolute', bottom: '-25px', left: '-10px', color: 'white' }}>
-                                {blLabel}
-                            </div>
-                            <div style={{ position: 'absolute', bottom: '-25px', right: '-10px', color: 'white' }}>
-                                {brLabel}
-                            </div>
-
-                            {/* Axis Indicators */}
-                            <div style={xAxisStyle}>
-                                {xAxisText}
-                            </div>
-                            <div style={yAxisStyle}>
-                                {yAxisText}
-                            </div>
-
-                            <canvas
-                                ref={this.canvasRef}
-                                width={canvasWidth}
-                                height={canvasHeight}
-                                style={{
-                                    border: '3px solid #20c997',
-                                    borderRadius: '12px',
-                                    boxShadow: '0 0 30px rgba(32, 201, 151, 0.2), 0 8px 32px rgba(0, 0, 0, 0.4)',
-                                    backgroundColor: 'white',
-                                    touchAction: 'none',
-                                    cursor: 'crosshair',
-                                    width: this.state.displaySize,
-                                    height: this.state.displaySize,
-                                    maxWidth: '100%'
-                                }}
-                                onMouseDown={this.startDrawing}
-                                onMouseMove={this.draw}
-                                onMouseUp={this.stopDrawing}
-                                onMouseLeave={this.stopDrawing}
-                                onTouchStart={this.startDrawing}
-                                onTouchMove={this.draw}
-                                onTouchEnd={this.stopDrawing}
-                            />
                         </div>
-                        <Row className="mb-3 justify-content-center">
-                            <Col xs={12} md={6} lg={4}>
-                                <InputGroup className="mb-3">
-                                    <InputGroup.Prepend>
-                                        <InputGroup.Text>Name</InputGroup.Text>
-                                    </InputGroup.Prepend>
-                                    <Form.Control
-                                        type="text"
-                                        placeholder="Drawing Name"
-                                        value={this.state.drawingName}
-                                        onChange={(e) => this.setState({ drawingName: e.target.value })}
-                                    />
-                                </InputGroup>
-                            </Col>
-                            <Col xs={12} md={6} lg={4}>
-                                <InputGroup className="mb-3">
-                                    <InputGroup.Prepend>
-                                        <InputGroup.Text>Feedrate</InputGroup.Text>
-                                    </InputGroup.Prepend>
-                                    <Form.Control
-                                        type="number"
-                                        placeholder="2000"
-                                        value={this.state.feedrate}
-                                        onChange={(e) => this.setState({ feedrate: parseInt(e.target.value) || 2000 })}
-                                    />
-                                </InputGroup>
-                            </Col>
-                        </Row>
-                        <Row className="justify-content-center">
-                            <Col xs="auto">
-                                <Button variant="danger" onClick={this.clearCanvas}>
-                                    <Trash className="mr-2" /> Clear
-                                </Button>
-                            </Col>
-                            <Col xs="auto">
-                                <Button variant="info" onClick={this.downloadGCode}>
-                                    <Download className="mr-2" /> Download
-                                </Button>
-                            </Col>
-                            <Col xs="auto">
-                                <Button variant="success" onClick={this.sendToTable}>
-                                    <Upload className="mr-2" /> Send to Table
-                                </Button>
-                            </Col>
-                        </Row>
-                    </Card.Body>
-                </Card>
+                    </div>
+                </div>
+
+                {/* Main Content */}
+                <div className="canvas-main-content">
+                    <div className="canvas-wrapper">
+                        {/* Corner Labels */}
+                        <div className="corner-label top-left">{formatCoordinate(corners.topLeft)}</div>
+                        <div className="corner-label top-right">{formatCoordinate(corners.topRight)}</div>
+                        <div className="corner-label bottom-left">{formatCoordinate(corners.bottomLeft)}</div>
+                        <div className="corner-label bottom-right">{formatCoordinate(corners.bottomRight)}</div>
+
+                        <canvas
+                            ref={this.canvasRef}
+                            width={internalWidth}
+                            height={internalHeight}
+                            style={{
+                                border: '3px solid #20c997',
+                                borderRadius: '12px',
+                                boxShadow: '0 0 30px rgba(32, 201, 151, 0.2), 0 8px 32px rgba(0, 0, 0, 0.4)',
+                                backgroundColor: 'white',
+                                touchAction: 'none',
+                                cursor: 'crosshair',
+                                width: displaySize.width,
+                                height: displaySize.height,
+                            }}
+                            onMouseDown={this.startDrawing}
+                            onMouseMove={this.draw}
+                            onMouseUp={this.stopDrawing}
+                            onMouseLeave={this.stopDrawing}
+                            onTouchStart={this.startDrawing}
+                            onTouchMove={this.draw}
+                            onTouchEnd={this.stopDrawing}
+                        />
+                    </div>
+                </div>
             </div>
         );
     }

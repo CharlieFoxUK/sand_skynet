@@ -10,34 +10,36 @@
 /** ----------------------------------------------------- **/
 
 
-.bg-light-alpha{
+.bg-light-alpha {
     background-color: $light_alpha;
 }
 
-a, a:visited {
+a,
+a:visited {
     text-decoration: none;
     font-weight: 700;
     color: $dark;
     cursor: pointer;
 }
-a:hover{
+
+a:hover {
     text-decoration: underline;
 }
 
-button{
+button {
     @extend .btn;
     @extend .m-1;
     background-color: $primary;
     color: $dark;
 }
 
-.btn-dark{
+.btn-dark {
     @extend .btn-dark;
     background-color: $dark;
     color: $primary;
 }
 
-.section-header{
+.section-header {
     @extend .border-bottom;
     @extend .border-light;
     @extend .align-item-center !optional;
@@ -46,35 +48,35 @@ button{
     @extend .pb-2;
 }
 
-.center{
+.center {
     @extend .d-flex;
     @extend .text-center;
     @extend .justify-content-center;
 }
 
-.data{
+.data {
     display: none;
 }
 
-.clickable{
+.clickable {
     cursor: pointer;
 }
 
-.text-bold{
+.text-bold {
     font-weight: 900;
 }
 
-.no-margin{
+.no-margin {
     margin: 0px !important;
 }
 
-.infos-box{
+.infos-box {
     @extend .bg-light;
     @extend .rounded;
     @extend .text-dark;
 }
 
-footer{
+footer {
     position: fixed;
     bottom: 0px;
     width: 100%;
@@ -82,7 +84,7 @@ footer{
 
 /* HOVERS */
 
-.image-overlay-light{
+.image-overlay-light {
     position: absolute;
     top: 0px;
     left: 0px;
@@ -93,115 +95,121 @@ footer{
     transition: 0.3s;
 }
 
-.image-overlay-light:hover{
+.image-overlay-light:hover {
     opacity: 0.5;
 }
 
-.hover-light:hover{
+.hover-light:hover {
     background-color: $primary;
     transition: 0.2s;
 }
 
-.hover-primary:hover{
+.hover-primary:hover {
     background-color: $primary;
     transition: background-color 0.2s;
 }
 
-button:hover, .btn-dark:hover{
+button:hover,
+.btn-dark:hover {
     background-color: $primary;
     transition: 0.15s;
     color: $white;
 }
-.btn-primary:hover{
+
+.btn-primary:hover {
     background-color: $light;
     color: $dark;
     border-color: $dark;
 }
 
-.hover-zoom{
-    &:hover{
+.hover-zoom {
+    &:hover {
         transform: scale(1.05);
     }
-    &:hover .glass{
+
+    &:hover .glass {
         transform: scale(1.001);
     }
+
     transition: all ease-in-out 0.15s;
 }
 
-.disappear{
+.disappear {
     transform: scale(0);
     transition: all ease-in-out 0.2s;
 }
 
-.max-width{
+.max-width {
     max-width: 960px;
 }
 
-.logo{
+.logo {
     font-weight: bold;
     color: white;
 }
 
-.glass{
+.glass {
     background-color: rgba(83, 83, 83, 0.5);
 }
+
 @supports (-webkit-backdrop-filter: none) or (backdrop-filter: none) {
     .glass {
-      -webkit-backdrop-filter: blur(10px);
-      backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(10px);
     }
 }
 
-.icon{
+.icon {
     @extend .mr-2;
     @extend .align-self-center;
 }
 
-hr{
+hr {
     height: 4px;
     border-color: $primary;
 }
 
 /* Bootstrap overrides */
-.card{
+.card {
     @extend .card;
     background-color: transparent;
     border: 0px;
 }
 
-.toast{
+.toast {
     @extend .toast;
     @extend .m-3;
     position: relative;
     z-index: 2000;
 }
 
-.form-control-range{
+.form-control-range {
     background-color: $primary;
 }
 
 @media (max-width: 575.98px) {
+
     /* this manual margin is necessary in the sortable list because otherwise for small devices it is impossible to scroll the page.
        Like this will add some space on the sides to be able to scroll the page */
-    .mobile-overflow{
+    .mobile-overflow {
         padding-right: 30px;
         padding-left: 30px;
     }
 }
 
 /* Carousel mutli overrides */
-button.react-multiple-carousel__arrow{
+button.react-multiple-carousel__arrow {
     background-color: $light;
     color: $dark;
 }
 
-button.react-multiple-carousel__arrow:hover{
+button.react-multiple-carousel__arrow:hover {
     background-color: $primary;
 }
 
 /* Context menues */
 
-.react-contextmenu{
+.react-contextmenu {
     background-color: $white;
     color: $dark;
     z-index: 1000;
@@ -209,7 +217,8 @@ button.react-multiple-carousel__arrow:hover{
     @extend .p-1;
     @extend .rounded;
 }
-.react-contextmenu-item{
+
+.react-contextmenu-item {
     background-color: $white;
     color: $dark;
     @extend .p-2;
@@ -217,51 +226,53 @@ button.react-multiple-carousel__arrow:hover{
     @extend .clickable;
 }
 
-.react-contextmenu-item--active, .react-contextmenu-item--selected{
+.react-contextmenu-item--active,
+.react-contextmenu-item--selected {
     background-color: $light;
 }
 
 /* special styles */
-.fade-top{
+.fade-top {
     margin-bottom: -1px;
     background-image: linear-gradient(transparent, $primary);
 }
 
-.toast_container_position{
+.toast_container_position {
     position: fixed;
     right: 0px;
     bottom: 0px;
     z-index: 1035;
 }
 
-.pb100{
+.pb100 {
     padding-bottom: 100%;
 }
 
-.square{
-    width:100%;
-    padding-top:100% !important;
+.square {
+    width: 100%;
+    padding-top: 100% !important;
     position: relative;
-    div{
+
+    div {
         position: absolute;
-        top:45%;
-        width:100%;
+        top: 45%;
+        width: 100%;
         @extend .center;
         @extend .text-light;
     }
 }
 
-.bg-black{
+.bg-black {
     background-color: $black;
 }
 
-.highlight-tab{
+.highlight-tab {
     background-color: $dark;
     color: $primary !important;
     @extend .rounded;
 }
 
-.corner-icon{
+.corner-icon {
     position: absolute;
     top: -10px;
     left: -10px;
@@ -269,12 +280,17 @@ button.react-multiple-carousel__arrow:hover{
 }
 
 // fixing checkbox appearance
-.custom-control{
+.custom-control {
     z-index: inherit;
 }
 
 // development styles 
-.bgred{
+.bgred {
     background-color: red;
     color: black;
+}
+
+/* Hide Dropdown Caret */
+.no-caret::after {
+    display: none !important;
 }

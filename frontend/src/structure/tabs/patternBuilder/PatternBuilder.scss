@@ -5,20 +5,18 @@
     position: relative;
 }
 
-/* Fixed Sidebar - Left Edge */
+/* Fixed Sidebar - Left Edge (Now Flexbox) */
 .pb-sidebar {
-    position: fixed;
-    left: 0;
-    top: 60px;
-    /* Below topbar */
     width: 320px;
-    height: calc(100vh - 60px);
     background: #1a1a1a;
     border-right: 1px solid #333;
     display: flex;
     flex-direction: column;
     z-index: 50;
     overflow: hidden;
+    flex-shrink: 0;
+    /* Ensure it doesn't shrink */
+    min-height: calc(100vh - 60px);
 }
 
 .pb-sidebar-header {
@@ -58,13 +56,13 @@
 /* Main Content - Centered Canvas */
 .pb-main-content {
     flex: 1;
-    margin-left: 320px;
-    /* Match sidebar width */
+    /* margin-left: 320px; Removed for flexbox */
     display: flex;
     justify-content: center;
     align-items: center;
     padding: 20px;
     min-height: calc(100vh - 70px);
+    position: relative;
 }
 
 /* Mobile responsiveness - stack layout */
@@ -179,9 +177,40 @@
 
 /* Pattern Preview - fill available space */
 .pattern-preview-container {
-    width: 100%;
-    max-width: 900px;
+    /* width: 100%; Removed to allow container to size to content */
+    /* max-width: 900px; */
     display: flex;
     justify-content: center;
     align-items: center;
+    position: relative;
+    /* For corner labels */
+
+    .corner-label {
+        position: absolute;
+        font-size: 11px;
+        color: #20c997;
+        font-family: monospace;
+        z-index: 10;
+        pointer-events: none;
+
+        &.top-left {
+            top: -20px;
+            left: 0;
+        }
+
+        &.top-right {
+            top: -20px;
+            right: 0;
+        }
+
+        &.bottom-left {
+            bottom: -25px;
+            left: 0;
+        }
+
+        &.bottom-right {
+            bottom: -25px;
+            right: 0;
+        }
+    }
 }

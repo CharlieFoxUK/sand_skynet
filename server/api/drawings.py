@@ -23,7 +23,44 @@ def api_upload():
                 # refreshing list of drawings for all the clients
                 drawings_refresh()
                 return jsonify(id)
-    return jsonify(-1)
+@app.route('/api/rename/<int:id>', methods=['POST'])
+def api_rename(id):
+    try:
+        data = request.get_json()
+        new_name = data.get('name')
+        if not new_name:
+            return jsonify({"error": "No name provided"}), 400
+            
+        drawing = UploadedFiles.query.get(id)
+        if not drawing:
+            return jsonify({"error": "Drawing not found"}), 404
+
+        # Sanitize new name
+        new_name = "".join(x for x in new_name if x.isalnum() or x in "._- ")
+        if not new_name.lower().endswith(".gcode"):
+            new_name += ".gcode"
+
+        # Rename file on disk
+        folder = os.path.join(app.root_path, 'static', 'Drawings', str(id))
+        
+        # Note: The file on disk is usually named "id.gcode" (see download_drawing), 
+        # but the database stores the 'display' filename.
+        # Let's check how preprocess_drawing does it.
+        # It seems the file on disk is saved as str(id) + extension?
+        # download_drawing uses: filename = str(id) + ".gcode"
+        # So the disk filename relies on ID, we don't need to rename the disk file!
+        # We only need to update the DB filename.
+        
+        drawing.filename = new_name
+        from server.database.models import db
+        db.session.commit()
+        
+        drawings_refresh()
+        return jsonify({"success": True, "name": new_name})
+        
+    except Exception as e:
+        app.logger.error(f"Error renaming drawing: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/download/<int:id>')
 def download_drawing(id):

@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { connect } from 'react-redux';
 import { generateLayerPoints } from '../utils/geometry';
+import { getTableConfig, getCanvasDisplaySize, getCornerCoordinates, formatCoordinate } from '../../../../utils/tableConfig';
 
 const COLORS = ['#0dcaf0', '#20c997', '#ffc107', '#fd7e14', '#dc3545', '#6f42c1', '#d63384'];
 
@@ -10,22 +11,18 @@ const mapStateToProps = (state) => ({
 });
 
 function PatternPreview({ layers, settings }) {
-    const [displaySize, setDisplaySize] = useState(600);
+    const [maxDisplaySize, setMaxDisplaySize] = useState(600);
 
-    // Calculate size based on available viewport (excluding sidebar)
+    // Calculate size based on available viewport
     useEffect(() => {
         const updateSize = () => {
             const viewportWidth = window.innerWidth;
             const viewportHeight = window.innerHeight;
             const isMobile = viewportWidth < 992;
-
-            // On desktop, account for fixed sidebar (320px)
             const availableWidth = isMobile ? viewportWidth - 40 : viewportWidth - 320 - 80;
             const availableHeight = viewportHeight - 150;
-
-            // Use the smaller of width or height, capped at 900px
             const size = Math.min(availableWidth, availableHeight, 900);
-            setDisplaySize(Math.max(300, size));
+            setMaxDisplaySize(Math.max(300, size));
         };
 
         updateSize();
@@ -33,16 +30,13 @@ function PatternPreview({ layers, settings }) {
         return () => window.removeEventListener('resize', updateSize);
     }, []);
 
-    // Get table dimensions from settings for aspect ratio
-    const device = settings?.device || {};
-    const tableWidth = parseFloat(device.width?.value) || 300;
-    const tableHeight = parseFloat(device.height?.value) || 300;
-
-    // Calculate viewBox to maintain aspect ratio
-    const aspectRatio = tableWidth / tableHeight;
-    const viewBoxSize = 2.2;
-    const viewBoxWidth = aspectRatio >= 1 ? viewBoxSize * aspectRatio : viewBoxSize;
-    const viewBoxHeight = aspectRatio >= 1 ? viewBoxSize : viewBoxSize / aspectRatio;
+    // Get table config and proper display size
+    const config = getTableConfig(settings);
+    const displaySize = getCanvasDisplaySize(config, {
+        maxWidth: maxDisplaySize,
+        maxHeight: maxDisplaySize
+    });
+    const corners = getCornerCoordinates(config);
 
     // Generate points for all visible layers
     const layerPaths = useMemo(() => {
@@ -52,13 +46,12 @@ function PatternPreview({ layers, settings }) {
                 const points = generateLayerPoints(layer);
                 if (points.length === 0) return null;
 
-                // Build path data, handling stroke breaks (NaN points)
+                // Build path data, handling stroke breaks
                 let pathData = '';
                 let needsMove = true;
 
                 for (const point of points) {
                     if (isNaN(point.x) || isNaN(point.y) || point.isBreak) {
-                        // Stroke break - next point needs a Move command
                         needsMove = true;
                     } else {
                         const cmd = needsMove ? 'M' : 'L';
@@ -79,11 +72,18 @@ function PatternPreview({ layers, settings }) {
 
     return (
         <div className="pattern-preview-container">
+            {/* Corner coordinates */}
+            <div className="corner-label top-left">{formatCoordinate(corners.topLeft)}</div>
+            <div className="corner-label top-right">{formatCoordinate(corners.topRight)}</div>
+            <div className="corner-label bottom-left">{formatCoordinate(corners.bottomLeft)}</div>
+            <div className="corner-label bottom-right">{formatCoordinate(corners.bottomRight)}</div>
+
             <svg
-                viewBox={`${-viewBoxWidth / 2} ${-viewBoxHeight / 2} ${viewBoxWidth} ${viewBoxHeight}`}
+                viewBox="-1 -1 2 2"
+                preserveAspectRatio="none"
                 style={{
-                    width: displaySize,
-                    height: displaySize,
+                    width: displaySize.width,
+                    height: displaySize.height,
                     backgroundColor: '#0d0d0d',
                     borderRadius: '12px',
                     border: '3px solid #20c997',
@@ -101,16 +101,7 @@ function PatternPreview({ layers, settings }) {
                     );
                 })}
 
-                {/* Table boundary circle */}
-                <circle
-                    cx="0"
-                    cy="0"
-                    r="1"
-                    fill="none"
-                    stroke="#333"
-                    strokeWidth="0.015"
-                    strokeDasharray="0.05 0.03"
-                />
+                {/* Origin crosshair */}
 
                 {/* Origin crosshair */}
                 <line x1="-0.15" y1="0" x2="0.15" y2="0" stroke="#444" strokeWidth="0.008" />

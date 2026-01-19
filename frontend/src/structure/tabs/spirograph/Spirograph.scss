@@ -8,29 +8,13 @@
 
 /* Fixed Settings Sidebar */
 .spirograph-settings {
-    position: fixed;
-    left: 0;
-    top: 60px;
     width: 300px;
-    height: calc(100vh - 60px);
-    overflow-y: auto;
+    flex-shrink: 0;
+    /* Remove fixed positioning to flow with page */
     border-radius: 0;
     border-right: 1px solid #333;
     z-index: 50;
-
-    /* Custom scrollbar */
-    &::-webkit-scrollbar {
-        width: 6px;
-    }
-
-    &::-webkit-scrollbar-track {
-        background: #1a1a1a;
-    }
-
-    &::-webkit-scrollbar-thumb {
-        background: #444;
-        border-radius: 3px;
-    }
+    min-height: calc(100vh - 60px);
 
     .card-header {
         background: #1a1a1a;
@@ -61,13 +45,47 @@
 /* Canvas Area */
 .spirograph-canvas-area {
     flex: 1;
-    margin-left: 300px;
+    /* margin-left: 300px; Removed since we are using flexbox */
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     padding: 20px;
     min-height: calc(100vh - 70px);
+    position: relative;
+
+    .canvas-container {
+        position: relative;
+    }
+
+    .corner-label {
+        position: absolute;
+        font-size: 11px;
+        color: #20c997;
+        font-family: monospace;
+        z-index: 10;
+        pointer-events: none;
+
+        &.top-left {
+            top: -20px;
+            left: 0;
+        }
+
+        &.top-right {
+            top: -20px;
+            right: 0;
+        }
+
+        &.bottom-left {
+            bottom: -25px;
+            left: 0;
+        }
+
+        &.bottom-right {
+            bottom: -25px;
+            right: 0;
+        }
+    }
 }
 
 /* Mobile Layout */

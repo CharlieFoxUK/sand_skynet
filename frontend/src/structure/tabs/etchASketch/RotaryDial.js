@@ -8,13 +8,18 @@ import './EtchASketch.scss';
  */
 function RotaryDial({
     label = 'X',
-    onChange,
+    onChange, // Legacy/Simple usage: returns calculated value
+    onRotate, // New usage: returns raw degree delta
+    value,    // Controlled usage: rotation in degrees
     size = 150,
     sensitivity = 0.5,
     color = '#20c997'
 }) {
     const dialRef = useRef(null);
-    const [rotation, setRotation] = useState(0);
+    // Use internal state if value prop is not provided
+    const [internalRotation, setInternalRotation] = useState(0);
+    const rotation = value !== undefined ? value : internalRotation;
+
     const [isDragging, setIsDragging] = useState(false);
     const lastAngleRef = useRef(0);
     // Track the specific touch ID this dial is responding to
@@ -39,15 +44,24 @@ function RotaryDial({
         if (delta > 180) delta -= 360;
         if (delta < -180) delta += 360;
 
-        setRotation(prev => prev + delta * sensitivity);
+        // Visual rotation update
+        if (value === undefined) {
+            setInternalRotation(prev => prev + delta * sensitivity);
+        }
+
         lastAngleRef.current = currentAngle;
 
-        // Convert rotation to position change
+        // Output raw rotation delta
+        if (onRotate) {
+            onRotate(delta * sensitivity);
+        }
+
+        // Output legacy change value
         const positionDelta = delta * sensitivity * 0.1; // Scale for reasonable movement
         if (onChange && Math.abs(positionDelta) > 0.001) {
             onChange(positionDelta);
         }
-    }, [sensitivity, onChange]);
+    }, [sensitivity, onChange, onRotate, value]);
 
     // Mouse start
     const onMouseDown = useCallback((e) => {
