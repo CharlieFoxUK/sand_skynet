@@ -82,8 +82,7 @@ class DrawingElement(GenericPlaylistElement):
                 if line.startswith(";"):                                                            # skips commented lines
                     continue
                 if ";" in line:                                                                     # remove in line comments
-                    line.split(";")
-                    line = line[0]
+                    line = line.split(";")[0]
                 # calculates the distance travelled
                 try:
                     if "X" in line:

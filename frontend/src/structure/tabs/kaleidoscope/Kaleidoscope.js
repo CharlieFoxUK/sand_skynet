@@ -234,7 +234,13 @@ class Kaleidoscope extends Component {
     internalToCenterNormalized = (point) => {
         const normX = (point.x - this.internalSize / 2) / (this.internalSize / 2);
         const normY = -(point.y - this.internalSize / 2) / (this.internalSize / 2); // Flip Y
-        return { x: normX, y: normY };
+
+        // Clamp to valid range to prevent coordinates exceeding table bounds
+        // When points are rotated/mirrored, they can go beyond the canvas edges
+        return {
+            x: Math.max(-1, Math.min(1, normX)),
+            y: Math.max(-1, Math.min(1, normY))
+        };
     }
 
     handleGenerateGCode = () => {
