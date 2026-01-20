@@ -363,7 +363,7 @@ class Spirograph extends Component {
         const config = getTableConfig(this.props.settings);
 
         return generateGCode(allPaths, config, {
-            feedrate: this.state.feedrate,
+            feedrate: 2000,
             coordinateType: CoordinateType.CENTER_NORMALIZED
         });
     }

@@ -24,7 +24,6 @@ class Kaleidoscope extends Component {
             paths: [],
             currentPath: [],
             drawingName: "",
-            feedrate: 2000,
             maxDisplaySize: 600,
             segments: 6,
             mirrorMode: 'radial',
@@ -273,7 +272,7 @@ class Kaleidoscope extends Component {
         }
 
         return generateGCode(allPaths, config, {
-            feedrate: this.state.feedrate,
+            feedrate: 2000,
             coordinateType: CoordinateType.CENTER_NORMALIZED
         });
     }
@@ -368,16 +367,7 @@ class Kaleidoscope extends Component {
                             />
                         </Form.Group>
 
-                        <Form.Group className="mb-3">
-                            <Form.Label className="small">Feedrate</Form.Label>
-                            <Form.Control
-                                type="number"
-                                value={this.state.feedrate}
-                                onChange={(e) => this.setState({ feedrate: parseInt(e.target.value) || 2000 })}
-                                className="bg-secondary text-white border-0"
-                                size="sm"
-                            />
-                        </Form.Group>
+
 
                         <div className="d-grid gap-2">
                             <Button variant="danger" onClick={this.clearCanvas}>

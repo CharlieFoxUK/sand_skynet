@@ -32,7 +32,6 @@ class Canvas extends Component {
             lastY: 0,
             paths: [], // Store paths for GCode generation
             drawingName: "",
-            feedrate: 2000,
             maxDisplaySize: 600
         };
     }
@@ -140,7 +139,7 @@ class Canvas extends Component {
         const canvas = this.canvasRef.current;
 
         return generateGCode(this.state.paths, config, {
-            feedrate: this.state.feedrate,
+            feedrate: 2000,
             coordinateType: CoordinateType.CANVAS,
             canvasSize: { width: canvas.width, height: canvas.height }
         });
@@ -203,17 +202,7 @@ class Canvas extends Component {
                             </InputGroup>
                         </div>
 
-                        <div className="mb-4">
-                            <label className="form-label">Feedrate (mm/min)</label>
-                            <InputGroup>
-                                <Form.Control
-                                    type="number"
-                                    placeholder="2000"
-                                    value={this.state.feedrate}
-                                    onChange={(e) => this.setState({ feedrate: parseInt(e.target.value) || 2000 })}
-                                />
-                            </InputGroup>
-                        </div>
+
 
                         <div className="d-grid gap-2">
                             <Button variant="success" onClick={this.sendToTable} className="mb-2">

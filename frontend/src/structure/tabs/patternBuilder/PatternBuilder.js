@@ -12,18 +12,16 @@ import PatternBuilderHelp from './components/PatternBuilderHelp';
 
 import { generateLayerPoints } from './utils/geometry';
 import { generateGCode, uploadGCode } from './utils/gcodeGenerator';
-import { setDrawingName, setFeedrate, resetPattern } from './PatternBuilder.slice';
+import { setDrawingName, resetPattern } from './PatternBuilder.slice';
 
 const mapStateToProps = (state) => ({
     layers: state.patternBuilder?.layers || [],
     drawingName: state.patternBuilder?.drawingName || '',
-    feedrate: state.patternBuilder?.feedrate || 2000,
     settings: state.settings
 });
 
 const mapDispatchToProps = (dispatch) => ({
     setDrawingName: (name) => dispatch(setDrawingName(name)),
-    setFeedrate: (rate) => dispatch(setFeedrate(rate)),
     resetPattern: () => dispatch(resetPattern())
 });
 
@@ -44,7 +42,7 @@ class PatternBuilder extends Component {
     }
 
     handleSendToDrawings = async () => {
-        const { layers, drawingName, feedrate, settings } = this.props;
+        const { layers, drawingName, settings } = this.props;
 
         if (layers.filter(l => l.visible).length === 0) {
             window.showToast?.('Add at least one visible layer to send');
@@ -55,7 +53,7 @@ class PatternBuilder extends Component {
 
         try {
             const layersWithPoints = this.getLayersWithPoints();
-            const gcode = generateGCode(layersWithPoints, settings, { feedrate });
+            const gcode = generateGCode(layersWithPoints, settings, { feedrate: 2000 });
 
             await uploadGCode(gcode, drawingName || `pattern_${Date.now()}`);
         } catch (error) {
@@ -66,7 +64,7 @@ class PatternBuilder extends Component {
     }
 
     handleDownload = () => {
-        const { layers, drawingName, feedrate, settings } = this.props;
+        const { layers, drawingName, settings } = this.props;
 
         if (layers.filter(l => l.visible).length === 0) {
             window.showToast?.('Add at least one visible layer to download');
@@ -74,7 +72,7 @@ class PatternBuilder extends Component {
         }
 
         const layersWithPoints = this.getLayersWithPoints();
-        const gcode = generateGCode(layersWithPoints, settings, { feedrate });
+        const gcode = generateGCode(layersWithPoints, settings, { feedrate: 2000 });
 
         const blob = new Blob([gcode], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
@@ -94,7 +92,7 @@ class PatternBuilder extends Component {
     }
 
     render() {
-        const { drawingName, feedrate, setDrawingName, setFeedrate, resetPattern } = this.props;
+        const { drawingName, setDrawingName, resetPattern } = this.props;
         const { isSending } = this.state;
 
         return (
@@ -129,16 +127,7 @@ class PatternBuilder extends Component {
                                         size="sm"
                                     />
                                 </Form.Group>
-                                <Form.Group className="mb-2">
-                                    <Form.Label className="small mb-1 text-muted">Feedrate</Form.Label>
-                                    <Form.Control
-                                        type="number"
-                                        value={feedrate}
-                                        onChange={(e) => setFeedrate(parseInt(e.target.value) || 2000)}
-                                        className="bg-secondary text-white border-0"
-                                        size="sm"
-                                    />
-                                </Form.Group>
+
                                 <div className="d-flex flex-wrap gap-1 mt-2">
                                     <Button
                                         variant="outline-secondary"
