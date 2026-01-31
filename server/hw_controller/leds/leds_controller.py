@@ -49,9 +49,45 @@ class LedsController:
         return status
 
     def reconnect(self):
+        """Force reconnection of the LED driver.
+        
+        This properly stops and cleans up the old driver before creating a new one,
+        which is necessary for Bluetooth drivers like SP107E that need proper disconnect.
+        """
         self.app.logger.info("LedsController: Force reconnecting...")
-        # Force re-initialization of the driver
+        
+        # First, properly stop and deinitialize the old driver
+        if self.driver is not None:
+            self.app.logger.info("LedsController: Stopping old driver...")
+            was_running = self._running
+            
+            # Stop the controller thread
+            if self._running:
+                self.stop()
+            
+            # Deinitialize the driver (this handles Bluetooth disconnect for SP107E)
+            try:
+                self.driver.deinit()
+                self.app.logger.info("LedsController: Old driver deinitialized")
+            except Exception as e:
+                self.app.logger.error(f"LedsController: Error deinitializing driver: {e}")
+            
+            # Clear the driver reference
+            self.driver = None
+            
+            # CRITICAL: Also clear cached settings so update_settings() will re-initialize
+            # The check on line 230 compares these values to decide whether to create a new driver
+            self.leds_type = None
+            self.pin = None
+            self.mac_address = None
+        
+        # Force re-initialization of the driver with fresh settings
         self.update_settings(settings_utils.load_settings())
+        
+        # Explicitly start the controller since update_settings() won't do it
+        # (because we already set _running = False in stop())
+        self.start()
+        self.reset_lights()
 
     def start(self):
         if not self.driver is None:

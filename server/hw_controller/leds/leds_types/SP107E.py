@@ -22,6 +22,7 @@ class SP107E:
         self._client = None
         self._brightness = 1.0
         self._command_queue = queue.Queue()
+        self._stop_event = threading.Event()  # Event to signal stop to async loop
 
         # Start the background thread
         self.start()
@@ -46,13 +47,151 @@ class SP107E:
     def start(self):
         if self._running: return
         self._running = True
+        self._stop_event.clear()  # Clear the stop event before starting
+        
+        # Pre-establish Bluetooth connection via bluetoothctl before starting async loop
+        # This is more reliable than depending solely on bleak's connection
+        self._prepare_bluetooth_connection()
+        
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
+    
+    def _prepare_bluetooth_connection(self):
+        """Trust the device via bluetoothctl before starting the async loop.
+        
+        We only TRUST here, not connect. Bleak needs to make its own connection
+        to properly manage GATT characteristics and send commands.
+        """
+        if not self.mac_address:
+            return
+        try:
+            import subprocess
+            import time
+            
+            if self.logger: self.logger.info(f"SP107E: Preparing Bluetooth for {self.mac_address}")
+            
+            # Trust the device first (required for BlueZ to allow connection)
+            result = subprocess.run(
+                ["bluetoothctl", "trust", self.mac_address],
+                timeout=5,
+                capture_output=True,
+                text=True
+            )
+            if self.logger: self.logger.info(f"SP107E: Trust: {result.stdout.strip()}")
+            
+            # DON'T connect here - let bleak handle the connection
+            # If we connect via bluetoothctl, bleak can't manage the GATT properly
+            
+        except Exception as e:
+            if self.logger: self.logger.warning(f"SP107E: Failed to prepare Bluetooth connection: {e}")
 
     def stop(self):
+        """Stop the SP107E driver and disconnect Bluetooth properly."""
+        if not self._running:
+            return
+            
+        if self.logger: self.logger.info("SP107E: Stopping driver...")
         self._running = False
+        self._stop_event.set()  # Signal the async loop to stop
+        
+        # Wait for the thread to finish (with timeout)
         if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=5.0) # Wait for thread to finish
+            self._thread.join(timeout=10.0)
+            if self._thread.is_alive():
+                if self.logger: self.logger.warning("SP107E: Thread didn't terminate in time")
+        
+        # Force OS-level disconnect via bluetoothctl as a fallback
+        self._force_bluetooth_disconnect()
+        
+        # Reset the Bluetooth adapter to clear any stale state
+        self._reset_bluetooth_adapter()
+        
+        # Reset state to allow restart
+        self._connected = False
+        self._client = None
+        self._thread = None
+        self._loop = None
+        
+        if self.logger: self.logger.info("SP107E: Driver stopped")
+    
+    def _force_bluetooth_disconnect(self):
+        """Force OS-level Bluetooth disconnect using bluetoothctl."""
+        if not self.mac_address:
+            return
+        try:
+            import subprocess
+            # Disconnect the device
+            result = subprocess.run(
+                ["bluetoothctl", "disconnect", self.mac_address],
+                timeout=5,
+                capture_output=True,
+                text=True
+            )
+            if self.logger: self.logger.info(f"SP107E: bluetoothctl disconnect: {result.stdout.strip()}")
+            
+            # Small delay to let BlueZ clean up
+            import time
+            time.sleep(1.0)
+        except Exception as e:
+            if self.logger: self.logger.warning(f"SP107E: Failed to force disconnect: {e}")
+    
+    def _reset_bluetooth_adapter(self):
+        """Reset the Bluetooth adapter by turning it off and back on.
+        
+        This helps clear any stale connections or stuck states in the Bluetooth stack.
+        """
+        try:
+            import subprocess
+            import time
+            
+            if self.logger: self.logger.info("SP107E: Resetting Bluetooth adapter...")
+            
+            # Turn Bluetooth off
+            result = subprocess.run(
+                ["bluetoothctl", "power", "off"],
+                timeout=5,
+                capture_output=True,
+                text=True
+            )
+            if self.logger: self.logger.info(f"SP107E: Bluetooth power off: {result.stdout.strip()}")
+            
+            # Wait for the adapter to fully power down
+            time.sleep(2.0)
+            
+            # Turn Bluetooth back on
+            result = subprocess.run(
+                ["bluetoothctl", "power", "on"],
+                timeout=5,
+                capture_output=True,
+                text=True
+            )
+            if self.logger: self.logger.info(f"SP107E: Bluetooth power on: {result.stdout.strip()}")
+            
+            # Wait for the adapter to be ready
+            time.sleep(2.0)
+            
+            # Trust the device (required for BlueZ to allow connection)
+            if self.mac_address:
+                result = subprocess.run(
+                    ["bluetoothctl", "trust", self.mac_address],
+                    timeout=5,
+                    capture_output=True,
+                    text=True
+                )
+                if self.logger: self.logger.info(f"SP107E: Trust device: {result.stdout.strip()}")
+                
+                # Also try to pre-connect via bluetoothctl since bleak sometimes fails
+                result = subprocess.run(
+                    ["bluetoothctl", "connect", self.mac_address],
+                    timeout=15,
+                    capture_output=True,
+                    text=True
+                )
+                if self.logger: self.logger.info(f"SP107E: Pre-connect via bluetoothctl: {result.stdout.strip()}")
+            
+            if self.logger: self.logger.info("SP107E: Bluetooth adapter reset complete")
+        except Exception as e:
+            if self.logger: self.logger.warning(f"SP107E: Failed to reset Bluetooth adapter: {e}")
 
     def deinit(self):
         self.stop()
@@ -66,7 +205,7 @@ class SP107E:
 
     async def _async_main(self):
         if self.logger: self.logger.info(f"SP107E: Starting BLE loop for {self.mac_address}")
-        while self._running:
+        while self._running and not self._stop_event.is_set():
             try:
                 if not self._connected:
                     if self.logger: self.logger.info(f"SP107E: Connecting to {self.mac_address}...")
@@ -92,7 +231,7 @@ class SP107E:
 
                         last_activity = time.time()
 
-                        while self._running and client.is_connected:
+                        while self._running and client.is_connected and not self._stop_event.is_set():
                             # Check for updates from _target_color or command queue
                             if self._target_color != self._current_color:
                                 await self._send_color_internal(client, self._target_color)
@@ -153,13 +292,15 @@ class SP107E:
                         except Exception as e:
                             if self.logger: self.logger.error(f"SP107E: Failed to force disconnect: {e}")
 
-                        # Wait a bit for BlueZ to clean up
-                        await asyncio.sleep(5.0)
+                        # Wait a bit for BlueZ to clean up (shortened for faster reconnect)
+                        if not self._stop_event.is_set():
+                            await asyncio.sleep(2.0)
                         
                         if self.logger: self.logger.info("SP107E: Disconnected loop end")
                         self._client = None # Clear client reference
                 else:
-                    await asyncio.sleep(1) # If already connected, just wait
+                    # If already connected, check periodically and respond to stop
+                    await asyncio.sleep(0.5)
             except Exception as e:
                 if self.logger: 
                     self.logger.error(f"SP107E Error: {e}")
@@ -171,7 +312,8 @@ class SP107E:
                     except:
                         pass
                 self._client = None # Clear client reference on error
-                await asyncio.sleep(5) # Wait before retrying
+                if not self._stop_event.is_set():
+                    await asyncio.sleep(5) # Wait before retrying
 
         if self._client and self._connected:
             await self._client.disconnect()
