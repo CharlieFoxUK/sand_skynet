@@ -161,6 +161,22 @@ function EtchASketch() {
     useEffect(() => {
         setIsInitialized(true);
         pathRef.current = [{ x: 0.5, y: 0.5 }];
+
+        // Blur any focused dropdown toggles to prevent arrow keys from re-opening the menu
+        // This handles the case where user navigates to Etch-a-Sketch via the hamburger menu
+        // Use setTimeout to ensure this runs after any click events have fully completed
+        const blurTimer = setTimeout(() => {
+            const dropdownToggle = document.querySelector('#main-menu-dropdown');
+            if (dropdownToggle) {
+                dropdownToggle.blur();
+            }
+            // Also blur whatever is currently focused as a fallback
+            if (document.activeElement && document.activeElement !== document.body) {
+                document.activeElement.blur();
+            }
+        }, 100);
+
+        return () => clearTimeout(blurTimer);
     }, []);
 
     // Redraw on position change
@@ -227,30 +243,48 @@ function EtchASketch() {
             // Only capture arrow keys if not focused on inputs
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
+            // Don't capture arrow keys if any dropdown menu is open (e.g., hamburger menu)
+            const dropdownOpen = document.querySelector('.dropdown-menu.show');
+            if (dropdownOpen) return;
+
+            // If the dropdown toggle is focused, blur it immediately to prevent it from capturing arrow keys
+            const dropdownToggle = document.querySelector('#main-menu-dropdown');
+            if (dropdownToggle && (document.activeElement === dropdownToggle || e.target === dropdownToggle)) {
+                dropdownToggle.blur();
+                // Also blur the general active element as fallback
+                if (document.activeElement && document.activeElement !== document.body) {
+                    document.activeElement.blur();
+                }
+            }
+
             switch (e.key) {
                 case 'ArrowRight':
                     handleDoMove('x', STEP_DEGREES);
                     e.preventDefault();
+                    e.stopPropagation();
                     break;
                 case 'ArrowLeft':
                     handleDoMove('x', -STEP_DEGREES);
                     e.preventDefault();
+                    e.stopPropagation();
                     break;
                 case 'ArrowUp':
                     handleDoMove('y', STEP_DEGREES);
                     e.preventDefault();
+                    e.stopPropagation();
                     break;
                 case 'ArrowDown':
                     handleDoMove('y', -STEP_DEGREES);
                     e.preventDefault();
+                    e.stopPropagation();
                     break;
                 default:
                     break;
             }
         };
 
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+        window.addEventListener('keydown', handleKeyDown, true); // Use capture phase to run before Bootstrap
+        return () => window.removeEventListener('keydown', handleKeyDown, true);
     }, [handleDoMove]);
 
     // Clear canvas

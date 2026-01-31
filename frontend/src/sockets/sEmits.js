@@ -1,22 +1,22 @@
-import {socket} from './sCallbacks';
+import { socket } from './sCallbacks';
 
 // sends a gcode command to the feeder
-function sendCommand(command){
+function sendCommand(command) {
     socket.emit("send_gcode_command", command);
 }
 
 
 // ---- SETTINGS ----- 
 // emit a socket with the updated settigns
-function settingsSave(settings, connect=false){
+function settingsSave(settings, connect = false) {
     socket.emit("settings_save", settings, connect);
 }
 
-function settingsShutdownSystem(){
+function settingsShutdownSystem() {
     socket.emit("settings_shutdown_system");
 }
 
-function settingsRebootSystem(){
+function settingsRebootSystem() {
     socket.emit("settings_reboot_system");
 }
 
@@ -24,60 +24,60 @@ function settingsRebootSystem(){
 // ---- DRAWINGS ----
 
 // emit a socket to delete a drawing
-function drawingDelete(code){
+function drawingDelete(code) {
     socket.emit("drawing_delete", code);
 }
 
 // emit a socket to request an updated list of drawings
-function drawingsRequest(){
+function drawingsRequest() {
     socket.emit("drawings_refresh")
 }
 
 // emit a socket to add a drawing to the queue
-function drawingQueue(code){
+function drawingQueue(code) {
     socket.emit("drawing_queue", code);
 }
 
-function drawingPause(){
+function drawingPause() {
     socket.emit("drawing_pause");
 }
 
-function drawingResume(){
+function drawingResume() {
     socket.emit("drawing_resume");
 }
 
 
 // ---- LEDS ----
-function ledsSetColor(color){
+function ledsSetColor(color) {
     socket.emit("leds_set_color", color);
 }
 
-function ledsAutoDim(val){
+function ledsAutoDim(val) {
     socket.emit("leds_auto_dim", val);
 }
 
 // ---- PLAYLISTS ----
 // emit a socket to request an updated list of playlists
-function playlistsRequest(){
+function playlistsRequest() {
     socket.emit("playlists_refresh");
 }
 
 // delete a playlist
-function playlistDelete(id){
+function playlistDelete(id) {
     socket.emit("playlist_delete", id);
 }
 
 // add selected playlist to the queue
-function playlistQueue(id){
+function playlistQueue(id) {
     socket.emit("playlist_queue", id);
 }
 
 //emit a socket to create a new playlist
-function playlistSave(pl){
+function playlistSave(pl) {
     socket.emit("playlist_save", JSON.stringify(pl));
 }
 
-function playlistCreateNew(){
+function playlistCreateNew() {
     window.showToast("Creating new playlist...");
     socket.emit("playlist_create_new");
 }
@@ -86,74 +86,79 @@ function playlistCreateNew(){
 // ---- QUEUE ----
 
 // ask for an updated queue
-function queueGetStatus(){
+function queueGetStatus() {
     socket.emit("queue_get_status");
 }
 
 // set a new order for the queue
-function queueSetOrder(list){
+function queueSetOrder(list) {
     socket.emit("queue_set_order", JSON.stringify(list));
 }
 
 // stops only the current drawing and go on with the next one
-function queueNextDrawing(){
+function queueNextDrawing() {
     socket.emit("queue_next_drawing");
-    window.showToast(<div>The current drawing is being stopped. <br/>The device will still run until the buffer is empty.</div>)
+    window.showToast(<div>The current drawing is being stopped. <br />The device will still run until the buffer is empty.</div>)
 }
 
 // clears the queue and stop the device
-function queueStopAll(){
+function queueStopAll() {
     socket.emit("queue_stop_all");
     window.showToast(<div>Stopping the device...</div>);
 }
 
 // updates the value of the "repeat" flag
-function queueSetRepeat(val){
+function queueSetRepeat(val) {
     socket.emit("queue_set_repeat", val);
 }
 
 // updates the value of the "shuffle" flag
-function queueSetShuffle(val){
+function queueSetShuffle(val) {
     socket.emit("queue_set_shuffle", val);
 }
 
 // updates the value of the queue interval
-function queueSetInterval(val){
+function queueSetInterval(val) {
     socket.emit("queue_set_interval", val);
 }
 
 // starts a random drawing
-function queueStartRandom(){
+function queueStartRandom() {
     socket.emit("queue_start_random");
 }
 
 // ---- MANUAL CONTROL ----
 
-function controlEmergencyStop(){
+function controlEmergencyStop() {
     socket.emit("control_emergency_stop");
+}
+
+function controlSoftReset() {
+    socket.emit("control_soft_reset");
 }
 
 // ---- UPDATES ----
 
-function toggleAutoUpdateEnabled(){
+function toggleAutoUpdateEnabled() {
     socket.emit("updates_toggle_auto_enabled");
 }
 
 
 export {
-    sendCommand,  
+    sendCommand,
     controlEmergencyStop,
-    drawingDelete, 
-    drawingsRequest, 
-    drawingQueue, 
+    controlSoftReset,
+    drawingDelete,
+    drawingsRequest,
+    drawingQueue,
     drawingPause,
     drawingResume,
     ledsSetColor,
     ledsAutoDim,
-    playlistsRequest, 
+    playlistsRequest,
     playlistDelete,
     playlistQueue,
-    playlistSave, 
+    playlistSave,
     playlistCreateNew,
     queueGetStatus,
     queueSetOrder,

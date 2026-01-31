@@ -22,3 +22,11 @@ class SocketioEmits():
     # general emit
     def emit(self, topic, line):
         self.socketio.emit(topic, line)
+
+    # emit GRBL alarm notification
+    def grbl_alarm(self, code, description):
+        self.emit("grbl_alarm", {"code": code, "description": description})
+
+    # emit GRBL error notification
+    def grbl_error(self, code, description):
+        self.emit("grbl_error", {"code": code, "description": description})

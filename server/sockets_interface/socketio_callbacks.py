@@ -248,3 +248,8 @@ def leds_set_autodim(val):
 @socketio.on("control_emergency_stop")
 def control_emergency_stop():
     app.feeder.emergency_stop()
+
+@socketio.on("control_soft_reset")
+def control_soft_reset():
+    app.feeder.soft_reset()
+    app.semits.show_toast_on_UI("Soft Reset sent (Ctrl-X)")

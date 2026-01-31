@@ -69,7 +69,7 @@ const Visualizer = ({ settings }) => {
         <Card className="mb-3 mt-3">
             <Card.Header>Table Visualization</Card.Header>
             <Card.Body className="text-center">
-                <svg width="100%" height="auto" style={{ maxWidth: '600px', maxHeight: '600px', border: '1px solid #ccc', backgroundColor: '#fafafa' }} viewBox={`${-padding} ${-padding} ${physW + padding * 2} ${physH + padding * 2}`}>
+                <svg width="100%" height="100%" style={{ maxWidth: '600px', maxHeight: '600px', border: '1px solid #ccc', backgroundColor: '#fafafa' }} viewBox={`${-padding} ${-padding} ${physW + padding * 2} ${physH + padding * 2}`}>
                     {/* Physical Area */}
                     <rect x={0} y={0} width={physW} height={physH} fill="#ffe6e6" stroke="red" strokeWidth={2 / scale} />
 

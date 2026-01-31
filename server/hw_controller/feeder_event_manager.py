@@ -44,3 +44,11 @@ class FeederEventManager(FeederEventHandler):
     def on_device_ready(self):
         self.app.qmanager.check_autostart()
         self.app.qmanager.send_queue_status()
+
+    def on_grbl_alarm(self, code, description):
+        self.app.logger.warning(f"GRBL Alarm {code}: {description}")
+        self.app.semits.grbl_alarm(code, description)
+
+    def on_grbl_error(self, code, description):
+        self.app.logger.warning(f"GRBL Error {code}: {description}")
+        self.app.semits.grbl_error(code, description)

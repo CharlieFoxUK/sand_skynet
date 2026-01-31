@@ -46,6 +46,14 @@ class FeederEventHandler():
     def on_device_ready(self):
         pass
 
+    # called when GRBL reports an alarm
+    def on_grbl_alarm(self, code, description):
+        pass
+
+    # called when GRBL reports an error
+    def on_grbl_error(self, code, description):
+        pass
+
 
 
 # List of commands that are buffered by the controller
@@ -348,6 +356,21 @@ class Feeder():
         self.send_gcode_command(firmware.get_emergency_stop_command(self._firmware))
         # TODO add self.close() ?
 
+    # sends a soft reset command (Ctrl-X)
+    def soft_reset(self):
+        self.logger.info("Sending Soft Reset (Ctrl-X)")
+        # Send 0x18 (Ctrl-X)
+        with self.serial_mutex:
+            self.serial.send("\x18")
+        
+        # Stop internal Drawing 
+        if self.is_running():
+            self.stop()
+
+        # Clear local buffer to match device state
+        with self.command_buffer_mutex:
+            self.command_buffer.clear()
+
     # ----- PRIVATE METHODS -----
 
     # prepares the board
@@ -623,14 +646,31 @@ class Feeder():
                     pass
                 return
 
+            # alarms
+            elif "ALARM:" in line:
+                try:
+                    alarm_code = int(line.split("ALARM:")[1].strip())
+                    from server.hw_controller.grbl_codes import get_alarm_description
+                    description = get_alarm_description(alarm_code)
+                    self.logger.error(f"Grbl alarm {alarm_code}: {description}")
+                    self.handler.on_grbl_alarm(alarm_code, description)
+                except Exception as e:
+                    self.logger.error(f"Error parsing GRBL alarm: {e}")
+
             # errors
             elif "error:22" in line:
                 self.stop()
                 with self.command_buffer_mutex:
                     self.command_buffer.clear()
             elif "error:" in line:
-                self.logger.error("Grbl error: {}".format(line))
-                # TODO check/parse error types and give some hint about the problem?
+                try:
+                    error_code = int(line.split("error:")[1].strip())
+                    from server.hw_controller.grbl_codes import get_error_description
+                    description = get_error_description(error_code)
+                    self.logger.error(f"Grbl error {error_code}: {description}")
+                    self.handler.on_grbl_error(error_code, description)
+                except Exception as e:
+                    self.logger.error(f"Error parsing GRBL error: {e}")
 
 
         # TODO divide parser between firmwares?

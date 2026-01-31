@@ -6,16 +6,29 @@ import { connect } from "react-redux";
 import { deviceNewPosition } from '../../../sockets/sCallbacks';
 import { getDevice, getIsFastMode } from "../settings/selector";
 import { dictsAreEqual } from "../../../utils/dictUtils";
-import { isManualControl } from "../selector";
 
 const ANIMATION_FRAMES_MAX = 10;
 const ANIMATION_DURATION = 1000;
 
 const mapStateToProps = (state) => {
+    // Safety checks to prevent crash on initial load or if settings are missing
+    if (!state.settings || !state.settings.device) {
+        return {
+            device: { width: 500, height: 500, type: "Cartesian", radius: 250, physical_width: { value: 500 }, physical_height: { value: 500 } },
+            isFastMode: false
+        }
+    }
+
+    let isFastMode = false;
+    try {
+        isFastMode = getIsFastMode(state);
+    } catch (e) {
+        // fast_mode might be missing
+    }
+
     return {
         device: getDevice(state),
-        isManualControl: isManualControl(state),
-        isFastMode: getIsFastMode(state)
+        isFastMode: isFastMode
     }
 }
 
@@ -39,20 +52,33 @@ class Preview extends Component {
 
         this.width = 100;
         this.height = 100;
-        setInterval(this.updateImage.bind(this), 1000);         // update the image in an interval callback because updating every command is too heavy
+        // setInterval removed from constructor to avoid running before mount
     }
 
     componentDidMount() {
         if (!this.isPreviewMounted) {
             this.isPreviewMounted = true;
             this.canvas = this.canvasRef.current;
-            this.ctx = this.canvas.getContext("2d");
-            this.ctx.strokeStyle = this.lineColor;
-            this.ctx.fillStyle = this.bgColor;
-            this.ctx.lineWidth = this.multiplier;
-            this.clearCanvas();
-            this.forceUpdate();
-            deviceNewPosition(this.newLineFromDevice.bind(this));
+            // Add safety check for canvas
+            if (this.canvas) {
+                this.ctx = this.canvas.getContext("2d");
+                this.ctx.strokeStyle = this.lineColor;
+                this.ctx.fillStyle = this.bgColor;
+                this.ctx.lineWidth = this.multiplier;
+                this.clearCanvas();
+                this.forceUpdate();
+                console.log("Preview Debug: Subscribing to deviceNewPosition");
+                deviceNewPosition(this.newLineFromDevice.bind(this));
+            }
+        }
+        // Start interval here
+        this.intervalId = setInterval(this.updateImage.bind(this), 1000);
+    }
+
+    componentWillUnmount() {
+        this.isPreviewMounted = false;
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
         }
     }
 
@@ -64,13 +90,13 @@ class Preview extends Component {
     }
 
     shouldComponentUpdate(nextProps) {
-        if (!dictsAreEqual(nextProps.device, this.props.device) || this.props.isManualControl)
+        if (!dictsAreEqual(nextProps.device, this.props.device))
             this.forceImageRender = true;
         return true;
     }
 
     updateImage() {
-        if (this.canvas !== undefined && this.props.isManualControl) {
+        if (this.canvas !== undefined && this.imageRef.current) {
             this.imageRef.current.src = this.canvas.toDataURL();
         }
     }
@@ -173,7 +199,8 @@ class Preview extends Component {
             this.pp.y = 0;
         }
         this.ctx.beginPath();
-        this.ctx.moveTo(this.pp.x, this.height * this.multiplier - this.pp.x);
+        // Fix potential typo in logic: using height for y coordinate
+        this.ctx.moveTo(this.pp.x, this.height * this.multiplier - this.pp.y);
         this.animationFrames = 0;
         this.animateClear();
     }
@@ -215,6 +242,11 @@ class Preview extends Component {
             this.height = this.width;
             this.radius = parseInt(this.props.device.radius);
         }
+
+        // Safety check for dimensions
+        if (isNaN(this.width) || this.width <= 0) this.width = 500;
+        if (isNaN(this.height) || this.height <= 0) this.height = 500;
+
         // TODO add right click event on the preview with a "move here" command
 
         // Generate a placeholder data URL (1x1 transparent pixel or black canvas)

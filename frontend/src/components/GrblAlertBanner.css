@@ -1,0 +1,67 @@
+/* GRBL Alert Banner Styles */
+
+.grbl-alert-banner-container {
+    position: fixed;
+    top: 56px;
+    /* Below navbar */
+    left: 0;
+    right: 0;
+    z-index: 1040;
+    /* Below navbar (1050) but above content */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.grbl-alert-banner {
+    border-radius: 0;
+    border: none;
+    border-bottom: 2px solid;
+    animation: slideDown 0.3s ease-out;
+}
+
+.grbl-alarm {
+    background-color: #dc3545 !important;
+    color: white !important;
+    border-bottom-color: #bd2130 !important;
+}
+
+.grbl-alarm .close {
+    color: white;
+    opacity: 0.8;
+}
+
+.grbl-alarm .close:hover {
+    opacity: 1;
+}
+
+.grbl-error {
+    background-color: #ffc107 !important;
+    color: #212529 !important;
+    border-bottom-color: #e0a800 !important;
+}
+
+.grbl-error .close {
+    color: #212529;
+    opacity: 0.6;
+}
+
+.grbl-error .close:hover {
+    opacity: 1;
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Adjust main content padding when banner is visible */
+body.grbl-alert-active {
+    padding-top: 120px;
+    /* Navbar + banner height */
+}

@@ -47,6 +47,21 @@ The `docker/docker-compose.yml` on the Pi has been modified to mount local direc
 
 This means files on the Pi's filesystem are the "source of truth" for the running container. We simply keep the Pi's filesystem in sync with your local machine using `rsync`.
 
+## 🕹️ Manual Control & Acknowledgment System
+
+The Manual Control tab features a "chat-style" feedback mechanism for device commands.
+
+*   **Logic**:
+    *   User commands are echoed immediately (prefixed with `>`).
+    *   Device "ok" responses are intercepted by the frontend.
+    *   Instead of printing "ok", a **Blue Checkmark (✓)** is displayed next to the confirmed command.
+    *   This keeps the log clean and provides immediate visual feedback.
+*   **Implementation**:
+    *   Frontend: `CommandViewer.js` renders the history and checkmarks.
+    *   State: `CommandLine.js` uses strict functional state updates to prevent race conditions during fast device streaming.
+
+---
+
 ## ⚠️ Requirements & Troubleshooting
 
 *   **Prerequisites**:

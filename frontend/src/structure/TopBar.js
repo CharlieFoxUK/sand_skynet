@@ -5,6 +5,7 @@ import { connect } from 'react-redux';
 
 import IconButton from '../components/IconButton';
 import QueueControls from './tabs/queue/QueueControls';
+import GrblAlertBanner from '../components/GrblAlertBanner';
 
 import { getTab, showBack } from './tabs/selector';
 import { setTab, tabBack } from './tabs/Tabs.slice';
@@ -156,6 +157,7 @@ class TopBar extends Component {
                     </Dropdown>
                 </div>
             </Navbar>
+            <GrblAlertBanner />
         </div>
     }
 }

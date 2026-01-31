@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { Container, Form, Col, Button, Row, Card, Accordion } from 'react-bootstrap';
-import { PlusSquare, Save, Trash, Joystick, Lightbulb } from 'react-bootstrap-icons';
+import { PlusSquare, Save, Trash, Joystick, Lightbulb, Gear, PlayFill, Cpu } from 'react-bootstrap-icons';
 import { connect } from 'react-redux';
 
 import { Section, Subsection, SectionGroup } from '../../../components/Section';
@@ -19,6 +19,7 @@ import Visualizer from './Visualizer';
 // Import ManualControl and LEDs components for embedding
 import ManualControl from '../manual/ManualControl';
 import LedsController from '../leds/Leds';
+import GrblSettings from './GrblSettings';
 
 const mapStateToProps = (state) => {
     return {
@@ -64,11 +65,16 @@ class Settings extends Component {
     }
 
     generateHWSettings() {
-        if (!this.props.settings.buttons.available) // TODO include LEDS in this check
-            return "";
-        else return <Subsection sectionTitle="Additional hardware">
-            {this.generateHWLEDs()}
-            {this.generateHWButtonsForm()}
+        const hasButtons = this.props.settings.buttons.available;
+        const hasLEDs = this.props.settings.leds && this.props.settings.leds.available;
+
+        if (!hasButtons && !hasLEDs) return "";
+
+        return <Subsection sectionTitle="Additional hardware">
+            <Accordion className="mb-4">
+                {hasLEDs && this.generateHWLEDs()}
+                {hasButtons && this.generateHWButtonsForm()}
+            </Accordion>
         </Subsection>
     }
 
@@ -112,23 +118,39 @@ class Settings extends Component {
                 </Col>
             </Form.Row>
         });
-        return <SectionGroup sectionTitle="Buttons">
-            <p>
-                In this section it is possible to specify which functionality should be associated to any HW button wired in the table.
-                Add as many buttons as needed, specify the GPIO input pin (BCM index) and select the associated function from the dropdown menu.
-                For every button two actions are available: click and long press.
-                Each action can be choosen independently.</p>
-            <Container>
-                {rows}
-                <Form.Row className="center mt-2">
-                    <IconButton className="center w-100"
-                        icon={PlusSquare}
-                        onClick={this.props.createNewHWButton.bind(this)}>
-                        Add a new hardware button
-                    </IconButton>
-                </Form.Row>
-            </Container>
-        </SectionGroup>;
+        return <Card className="bg-dark border-secondary">
+            <Card.Header className="bg-dark p-0 border-secondary">
+                <Accordion.Toggle
+                    as={Button}
+                    variant="link"
+                    eventKey="hw-buttons"
+                    className="w-100 text-left text-white text-decoration-none p-3 d-flex align-items-center"
+                >
+                    <Cpu className="mr-3" size={20} />
+                    <span className="font-weight-bold">Buttons</span>
+                    <small className="ml-auto text-muted">Hardware button configuration</small>
+                </Accordion.Toggle>
+            </Card.Header>
+            <Accordion.Collapse eventKey="hw-buttons">
+                <Card.Body className="bg-secondary p-4">
+                    <p>
+                        In this section it is possible to specify which functionality should be associated to any HW button wired in the table.
+                        Add as many buttons as needed, specify the GPIO input pin (BCM index) and select the associated function from the dropdown menu.
+                        For every button two actions are available: click and long press.
+                        Each action can be choosen independently.</p>
+                    <Container>
+                        {rows}
+                        <Form.Row className="center mt-2">
+                            <IconButton className="center w-100"
+                                icon={PlusSquare}
+                                onClick={this.props.createNewHWButton.bind(this)}>
+                                Add a new hardware button
+                            </IconButton>
+                        </Form.Row>
+                    </Container>
+                </Card.Body>
+            </Accordion.Collapse>
+        </Card>;
     }
 
     scanLeds() {
@@ -199,22 +221,38 @@ class Settings extends Component {
                 statusBadge = <span className={`badge badge-${color} ml-2`}>{text}</span>;
             }
 
-            return <SectionGroup sectionTitle="LEDs">
-                <Container>
-                    <Form.Row>
-                        {this.mapEntries(ledsEntries)}
-                        {this.props.settings.leds.type.value === "SP107E" && (
-                            <Col>
-                                <div className="d-flex align-items-center mt-2">
-                                    <Button className="flex-grow-1" onClick={() => this.scanLeds()}>Scan</Button>
-                                    <Button variant="warning" className="ml-2" onClick={() => this.reconnectLeds()}>Reconnect</Button>
-                                    {statusBadge}
-                                </div>
-                            </Col>
-                        )}
-                    </Form.Row>
-                </Container>
-            </SectionGroup>
+            return <Card className="bg-dark border-secondary mb-2">
+                <Card.Header className="bg-dark p-0 border-secondary">
+                    <Accordion.Toggle
+                        as={Button}
+                        variant="link"
+                        eventKey="hw-leds"
+                        className="w-100 text-left text-white text-decoration-none p-3 d-flex align-items-center"
+                    >
+                        <Lightbulb className="mr-3" size={20} />
+                        <span className="font-weight-bold">LEDs</span>
+                        <small className="ml-auto text-muted">LED strip configuration</small>
+                    </Accordion.Toggle>
+                </Card.Header>
+                <Accordion.Collapse eventKey="hw-leds">
+                    <Card.Body className="bg-secondary p-4">
+                        <Container>
+                            <Form.Row>
+                                {this.mapEntries(ledsEntries)}
+                                {this.props.settings.leds.type.value === "SP107E" && (
+                                    <Col>
+                                        <div className="d-flex align-items-center mt-2">
+                                            <Button className="flex-grow-1" onClick={() => this.scanLeds()}>Scan</Button>
+                                            <Button variant="warning" className="ml-2" onClick={() => this.reconnectLeds()}>Reconnect</Button>
+                                            {statusBadge}
+                                        </div>
+                                    </Col>
+                                )}
+                            </Form.Row>
+                        </Container>
+                    </Card.Body>
+                </Accordion.Collapse>
+            </Card>
         } else return "";
     }
 
@@ -285,58 +323,153 @@ class Settings extends Component {
                     </Subsection>
 
                     <Subsection sectionTitle="Device settings">
-                        <SectionGroup sectionTitle="Serial port settings">
-                            <Container>
-                                <Form.Row>
-                                    {this.mapEntries(serialEntries)}
-                                    <Col>
-                                        <Button className="w-100 h-100" onClick={() => this.saveForm(true)}>Save and connect</Button>
-                                    </Col>
-                                </Form.Row>
-                            </Container>
-                        </SectionGroup>
-                        <SectionGroup sectionTitle="Device type">
-                            <Container>
-                                <Form.Row>
-                                    {this.mapEntries(deviceEntries.filter(e => e[0] !== 'orientation_origin' && e[0] !== 'orientation_swap'))}
-                                </Form.Row>
-                                <Visualizer settings={this.props.settings} />
-                                <Form.Row className="center mt-2">
-                                    <Button variant="info" onClick={() => {
-                                        window.showToast("Sending calibration pattern...");
-                                        fetch('/api/calibration/draw_boundaries', {
-                                            method: 'POST',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify(this.props.settings)
-                                        })
-                                            .then(r => r.json())
-                                            .then(d => {
-                                                if (d.error) window.showToast("Error: " + d.error);
-                                                else window.showToast("Pattern sent!");
-                                            })
-                                            .catch(e => window.showToast("Error: " + e));
-                                    }}>
-                                        Draw Boundaries & Calibrate
-                                    </Button>
-                                </Form.Row>
-                            </Container>
-                        </SectionGroup>
+                        <Accordion className="mb-4">
+                            {/* Serial port settings */}
+                            <Card className="bg-dark border-secondary mb-2">
+                                <Card.Header className="bg-dark p-0 border-secondary">
+                                    <Accordion.Toggle
+                                        as={Button}
+                                        variant="link"
+                                        eventKey="serial"
+                                        className="w-100 text-left text-white text-decoration-none p-3 d-flex align-items-center"
+                                    >
+                                        <Gear className="mr-3" size={20} />
+                                        <span className="font-weight-bold">Serial Port Settings</span>
+                                        <small className="ml-auto text-muted">Communication port configuration</small>
+                                    </Accordion.Toggle>
+                                </Card.Header>
+                                <Accordion.Collapse eventKey="serial">
+                                    <Card.Body className="bg-secondary p-4">
+                                        <Container>
+                                            <Form.Row>
+                                                {this.mapEntries(serialEntries)}
+                                                <Col>
+                                                    <Button className="w-100 h-100" onClick={() => this.saveForm(true)}>Save and connect</Button>
+                                                </Col>
+                                            </Form.Row>
+                                        </Container>
+                                    </Card.Body>
+                                </Accordion.Collapse>
+                            </Card>
+
+                            {/* Device type */}
+                            <Card className="bg-dark border-secondary">
+                                <Card.Header className="bg-dark p-0 border-secondary">
+                                    <Accordion.Toggle
+                                        as={Button}
+                                        variant="link"
+                                        eventKey="device"
+                                        className="w-100 text-left text-white text-decoration-none p-3 d-flex align-items-center"
+                                    >
+                                        <Cpu className="mr-3" size={20} />
+                                        <span className="font-weight-bold">Device Type</span>
+                                        <small className="ml-auto text-muted">Table geometry & calibration</small>
+                                    </Accordion.Toggle>
+                                </Card.Header>
+                                <Accordion.Collapse eventKey="device">
+                                    <Card.Body className="bg-secondary p-4">
+                                        <Container>
+                                            <Form.Row>
+                                                {this.mapEntries(deviceEntries.filter(e => e[0] !== 'orientation_origin' && e[0] !== 'orientation_swap'))}
+                                            </Form.Row>
+                                            <Visualizer settings={this.props.settings} />
+                                            <Form.Row className="center mt-2">
+                                                <Button variant="info" onClick={() => {
+                                                    window.showToast("Sending calibration pattern...");
+                                                    fetch('/api/calibration/draw_boundaries', {
+                                                        method: 'POST',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify(this.props.settings)
+                                                    })
+                                                        .then(r => r.json())
+                                                        .then(d => {
+                                                            if (d.error) window.showToast("Error: " + d.error);
+                                                            else window.showToast("Pattern sent!");
+                                                        })
+                                                        .catch(e => window.showToast("Error: " + e));
+                                                }}>
+                                                    Draw Boundaries & Calibrate
+                                                </Button>
+                                            </Form.Row>
+                                        </Container>
+                                    </Card.Body>
+                                </Accordion.Collapse>
+                            </Card>
+
+                            {/* GRBL Parameters */}
+                            <Card className="bg-dark border-secondary mt-2">
+                                <Card.Header className="bg-dark p-0 border-secondary">
+                                    <Accordion.Toggle
+                                        as={Button}
+                                        variant="link"
+                                        eventKey="grbl-params"
+                                        className="w-100 text-left text-white text-decoration-none p-3 d-flex align-items-center"
+                                    >
+                                        <Gear className="mr-3" size={20} />
+                                        <span className="font-weight-bold">GRBL Parameters</span>
+                                        <small className="ml-auto text-muted">Firmware configuration</small>
+                                    </Accordion.Toggle>
+                                </Card.Header>
+                                <Accordion.Collapse eventKey="grbl-params">
+                                    <Card.Body className="bg-secondary p-0">
+                                        <GrblSettings />
+                                    </Card.Body>
+                                </Accordion.Collapse>
+                            </Card>
+                        </Accordion>
                     </Subsection>
                     <Subsection sectionTitle="Automatisms">
-                        <SectionGroup sectionTitle="Scripts">
-                            <Container>
-                                <Form.Row>
-                                    {this.mapEntries(scriptEntries)}
-                                </Form.Row>
-                            </Container>
-                        </SectionGroup>
-                        <SectionGroup sectionTitle="Autostart options">
-                            <Container>
-                                <Form.Row>
-                                    {this.mapEntries(autostartEntries)}
-                                </Form.Row>
-                            </Container>
-                        </SectionGroup>
+                        <Accordion className="mb-4">
+                            {/* Scripts */}
+                            <Card className="bg-dark border-secondary mb-2">
+                                <Card.Header className="bg-dark p-0 border-secondary">
+                                    <Accordion.Toggle
+                                        as={Button}
+                                        variant="link"
+                                        eventKey="scripts"
+                                        className="w-100 text-left text-white text-decoration-none p-3 d-flex align-items-center"
+                                    >
+                                        <PlayFill className="mr-3" size={20} />
+                                        <span className="font-weight-bold">Scripts</span>
+                                        <small className="ml-auto text-muted">Scheduled automation</small>
+                                    </Accordion.Toggle>
+                                </Card.Header>
+                                <Accordion.Collapse eventKey="scripts">
+                                    <Card.Body className="bg-secondary p-4">
+                                        <Container>
+                                            <Form.Row>
+                                                {this.mapEntries(scriptEntries)}
+                                            </Form.Row>
+                                        </Container>
+                                    </Card.Body>
+                                </Accordion.Collapse>
+                            </Card>
+
+                            {/* Autostart options */}
+                            <Card className="bg-dark border-secondary">
+                                <Card.Header className="bg-dark p-0 border-secondary">
+                                    <Accordion.Toggle
+                                        as={Button}
+                                        variant="link"
+                                        eventKey="autostart"
+                                        className="w-100 text-left text-white text-decoration-none p-3 d-flex align-items-center"
+                                    >
+                                        <PlayFill className="mr-3" size={20} />
+                                        <span className="font-weight-bold">Autostart Options</span>
+                                        <small className="ml-auto text-muted">Boot behavior</small>
+                                    </Accordion.Toggle>
+                                </Card.Header>
+                                <Accordion.Collapse eventKey="autostart">
+                                    <Card.Body className="bg-secondary p-4">
+                                        <Container>
+                                            <Form.Row>
+                                                {this.mapEntries(autostartEntries)}
+                                            </Form.Row>
+                                        </Container>
+                                    </Card.Body>
+                                </Accordion.Collapse>
+                            </Card>
+                        </Accordion>
                     </Subsection>
                     {this.generateHWSettings()}
                 </Section>
