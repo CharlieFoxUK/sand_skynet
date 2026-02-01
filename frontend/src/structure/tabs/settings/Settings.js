@@ -246,6 +246,9 @@ class Settings extends Component {
                                             <Button variant="warning" className="ml-2" onClick={() => this.reconnectLeds()}>Reconnect</Button>
                                             {statusBadge}
                                         </div>
+                                        <div className="text-dark font-weight-bold small mt-1">
+                                            Note: Reconnection can take up to 2 minutes.
+                                        </div>
                                     </Col>
                                 )}
                             </Form.Row>

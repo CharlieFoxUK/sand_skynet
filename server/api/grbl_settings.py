@@ -13,6 +13,12 @@ def get_grbl_settings():
     try:
         if not app.feeder.is_connected():
             return jsonify({"error": "Hardware not connected"}), 503
+
+
+        
+        # Prevent sending $$ while running to avoid Error 8: Grbl '$' command cannot be used unless Grbl is IDLE
+        if app.feeder.is_running():
+            return jsonify({"error": "Machine is running - cannot fetch settings"}), 503
         
         # Storage for responses
         responses = []
@@ -67,6 +73,10 @@ def set_grbl_setting():
     try:
         if not app.feeder.is_connected():
             return jsonify({"error": "Hardware not connected"}), 503
+
+        # Prevent sending $x=val while running
+        if app.feeder.is_running():
+            return jsonify({"error": "Machine is running - cannot update settings"}), 503
         
         data = request.get_json()
         setting_id = data.get('id')
