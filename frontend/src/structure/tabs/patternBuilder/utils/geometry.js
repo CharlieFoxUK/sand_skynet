@@ -32,7 +32,7 @@ export function generatePolygon(sides = 100, radius = 1, rotation = 0) {
 /**
  * Generate points for an Archimedean spiral
  * @param {number} turns - Number of turns
- * @param {number} spacing - Space between turns (0-1)
+ * @param {number} spacing - Space between turns (controls how tightly wound - lower = tighter)
  * @param {number} direction - 1 for outward, -1 for inward
  * @param {number} samples - Points per turn
  * @returns {Array<{x: number, y: number}>}
@@ -40,21 +40,22 @@ export function generatePolygon(sides = 100, radius = 1, rotation = 0) {
 export function generateArchimedeanSpiral(turns = 5, spacing = 0.1, direction = 1, samples = 50) {
     const points = [];
     const totalSamples = turns * samples;
-    const maxRadius = turns * spacing;
+
+    // The spacing controls the "tightness" - lower spacing = more turns in same space
+    // We use spacing to adjust the effective number of turns while fitting in unit circle
+    const effectiveTurns = turns * spacing * 6; // Scale spacing to have visible effect
 
     for (let i = 0; i <= totalSamples; i++) {
         const t = direction === 1 ? i / totalSamples : 1 - (i / totalSamples);
-        const angle = t * turns * 2 * Math.PI;
-        const r = t * maxRadius;
+        const angle = t * effectiveTurns * 2 * Math.PI;
+        const r = t; // Linear growth from 0 to 1 (normalized)
         points.push({
             x: r * Math.cos(angle),
             y: r * Math.sin(angle)
         });
     }
 
-    // Normalize to fit in unit circle
-    const scale = maxRadius > 0 ? 1 / maxRadius : 1;
-    return points.map(p => ({ x: p.x * scale, y: p.y * scale }));
+    return points;
 }
 
 /**

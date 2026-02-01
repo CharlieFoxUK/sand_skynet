@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { Container, Form, Modal, Row, Col, InputGroup } from 'react-bootstrap';
-import { FileEarmarkX, Play, Plus, PlusSquare, X, Download, ChevronCompactLeft, Pencil, Check } from 'react-bootstrap-icons';
+import { FileEarmarkX, Play, Plus, PlusSquare, X, Download, ChevronCompactLeft, Pencil, Check, FileCode } from 'react-bootstrap-icons';
 import { connect } from 'react-redux';
 
 import { drawingDelete, drawingQueue } from '../../../sockets/sEmits';
@@ -46,7 +46,10 @@ class SingleDrawing extends Component {
         this.state = {
             showPlaylists: false,
             isRenaming: false,
-            renameValue: ""
+            renameValue: "",
+            showGCodeViewer: false,
+            gCodeContent: "",
+            gCodeLoading: false
         };
         this.selectRef = React.createRef();
     }
@@ -97,6 +100,20 @@ class SingleDrawing extends Component {
                 console.error('Error:', error);
                 window.showToast("Error renaming drawing");
             });
+    }
+
+    handleOpenGCodeViewer = async () => {
+        this.setState({ showGCodeViewer: true, gCodeLoading: true, gCodeContent: "" });
+
+        try {
+            const response = await fetch(`/api/download/${this.props.drawing.id}`);
+            if (!response.ok) throw new Error("Failed to fetch G-code");
+            const text = await response.text();
+            this.setState({ gCodeContent: text, gCodeLoading: false });
+        } catch (error) {
+            console.error('Error fetching G-code:', error);
+            this.setState({ gCodeContent: "Error loading G-code", gCodeLoading: false });
+        }
     }
 
     render() {
@@ -155,6 +172,13 @@ class SingleDrawing extends Component {
                         </IconButton>
                     </Col>
                     <Col xs="auto" className="center mx-1 mb-2">
+                        <IconButton className="btn center"
+                            icon={FileCode}
+                            tip="View G-code"
+                            onClick={this.handleOpenGCodeViewer}>
+                        </IconButton>
+                    </Col>
+                    <Col xs="auto" className="center mx-1 mb-2">
                         <ConfirmButton className="center"
                             icon={FileEarmarkX}
                             tip="Delete drawing"
@@ -209,6 +233,63 @@ class SingleDrawing extends Component {
                                 window.showToast("Drawing added to the playlist");
                             }}>
                             Add to selected playlist
+                        </IconButton>
+                    </Modal.Footer>
+                </Modal>
+
+                {/* G-code Viewer Modal */}
+                <Modal
+                    show={this.state.showGCodeViewer}
+                    onHide={() => this.setState({ showGCodeViewer: false })}
+                    size="lg"
+                    aria-labelledby="gcode-viewer-modal"
+                    centered>
+                    <Modal.Header closeButton className="bg-dark text-white">
+                        <Modal.Title id="gcode-viewer-modal">
+                            G-code: {this.props.drawing.filename}
+                        </Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body className="p-0" style={{ maxHeight: '60vh', overflow: 'auto', backgroundColor: '#1a1a1a' }}>
+                        {this.state.gCodeLoading ? (
+                            <div className="text-center p-5 text-muted">Loading G-code...</div>
+                        ) : (
+                            <pre style={{
+                                margin: 0,
+                                padding: '1rem',
+                                fontSize: '0.85rem',
+                                fontFamily: 'monospace',
+                                color: '#00ff88',
+                                backgroundColor: '#1a1a1a',
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-all',
+                                lineHeight: '1.4'
+                            }}>
+                                {this.state.gCodeContent.split('\n').map((line, idx) => (
+                                    <div key={idx} style={{ display: 'flex' }}>
+                                        <span style={{
+                                            color: '#666',
+                                            minWidth: '4em',
+                                            textAlign: 'right',
+                                            paddingRight: '1em',
+                                            userSelect: 'none'
+                                        }}>
+                                            {idx + 1}
+                                        </span>
+                                        <span>{line}</span>
+                                    </div>
+                                ))}
+                            </pre>
+                        )}
+                    </Modal.Body>
+                    <Modal.Footer className="bg-dark">
+                        <small className="text-muted me-auto">
+                            {this.state.gCodeContent ? `${this.state.gCodeContent.split('\n').length} lines` : ''}
+                        </small>
+                        <IconButton
+                            icon={X}
+                            onClick={() => this.setState({ showGCodeViewer: false })}
+                        >
+                            Close
                         </IconButton>
                     </Modal.Footer>
                 </Modal>

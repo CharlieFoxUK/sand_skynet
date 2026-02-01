@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { Button, Card, Form, ButtonGroup } from 'react-bootstrap';
-import { Trash, Upload, Download } from 'react-bootstrap-icons';
+import { Trash, Upload, Download, Pencil, Slash, Circle, Square, Triangle } from 'react-bootstrap-icons';
 import { connect } from 'react-redux';
 import { getSettings } from '../settings/selector';
 import { getTableConfig, getCanvasDisplaySize, getCornerCoordinates, formatCoordinate } from '../../../utils/tableConfig';
@@ -27,7 +27,10 @@ class Kaleidoscope extends Component {
             maxDisplaySize: 600,
             segments: 6,
             mirrorMode: 'radial',
-            showGuides: true
+            showGuides: true,
+            drawMode: 'freehand', // 'freehand', 'line', 'circle', 'square', 'triangle'
+            shapeStart: null, // { x, y } for shape start point
+            shapePreview: null // Preview points while dragging
         };
         this.internalSize = 1000;
     }
@@ -49,6 +52,9 @@ class Kaleidoscope extends Component {
 
     componentWillUnmount() {
         window.removeEventListener('resize', this.handleResize);
+        // Clean up document-level listeners if component unmounts while drawing
+        document.removeEventListener('mousemove', this.handleDocumentMove);
+        document.removeEventListener('mouseup', this.handleDocumentEnd);
     }
 
     componentDidUpdate(prevProps, prevState) {
@@ -131,6 +137,11 @@ class Kaleidoscope extends Component {
         if (this.state.currentPath.length > 0) {
             this.drawKaleidoscopePath(this.state.currentPath);
         }
+
+        // Draw shape preview while dragging
+        if (this.state.shapePreview && this.state.shapePreview.length > 1) {
+            this.drawKaleidoscopePath(this.state.shapePreview);
+        }
     }
 
     drawKaleidoscopePath = (path) => {
@@ -186,40 +197,164 @@ class Kaleidoscope extends Component {
         };
     }
 
+    // Shape generation functions
+    generateLinePoints = (start, end) => {
+        return [start, end];
+    }
+
+    generateCirclePoints = (center, radiusPoint) => {
+        const radius = Math.sqrt(
+            Math.pow(radiusPoint.x - center.x, 2) +
+            Math.pow(radiusPoint.y - center.y, 2)
+        );
+        const points = [];
+        const segments = 64;
+        for (let i = 0; i <= segments; i++) {
+            const angle = (i / segments) * 2 * Math.PI;
+            points.push({
+                x: center.x + radius * Math.cos(angle),
+                y: center.y + radius * Math.sin(angle)
+            });
+        }
+        return points;
+    }
+
+    generateSquarePoints = (start, end) => {
+        const width = end.x - start.x;
+        const height = end.y - start.y;
+        return [
+            { x: start.x, y: start.y },
+            { x: start.x + width, y: start.y },
+            { x: start.x + width, y: start.y + height },
+            { x: start.x, y: start.y + height },
+            { x: start.x, y: start.y } // Close the shape
+        ];
+    }
+
+    generateTrianglePoints = (start, end) => {
+        const width = end.x - start.x;
+        const height = end.y - start.y;
+        // Equilateral-ish triangle: top center, bottom left, bottom right
+        return [
+            { x: start.x + width / 2, y: start.y },           // Top center
+            { x: start.x + width, y: start.y + height },      // Bottom right
+            { x: start.x, y: start.y + height },              // Bottom left
+            { x: start.x + width / 2, y: start.y }            // Close to top
+        ];
+    }
+
+    generateShapePoints = (start, end, shapeType) => {
+        switch (shapeType) {
+            case 'line': return this.generateLinePoints(start, end);
+            case 'circle': return this.generateCirclePoints(start, end);
+            case 'square': return this.generateSquarePoints(start, end);
+            case 'triangle': return this.generateTrianglePoints(start, end);
+            default: return [];
+        }
+    }
+
     handleStart = (e) => {
         e.preventDefault();
         const { x, y } = this.getCanvasCoordinates(e);
-        this.setState({
-            isDrawing: true,
-            lastX: x,
-            lastY: y,
-            currentPath: [{ x, y }]
-        });
+        const { drawMode } = this.state;
+
+        if (drawMode === 'freehand') {
+            this.setState({
+                isDrawing: true,
+                lastX: x,
+                lastY: y,
+                currentPath: [{ x, y }]
+            });
+        } else {
+            // Shape mode: store start point
+            this.setState({
+                isDrawing: true,
+                shapeStart: { x, y },
+                shapePreview: null
+            });
+        }
+
+        // Add document-level listeners to continue drawing when cursor leaves canvas
+        document.addEventListener('mousemove', this.handleDocumentMove);
+        document.addEventListener('mouseup', this.handleDocumentEnd);
     }
 
     handleMove = (e) => {
         if (!this.state.isDrawing) return;
         e.preventDefault();
         const { x, y } = this.getCanvasCoordinates(e);
-        this.setState(prevState => ({
-            lastX: x,
-            lastY: y,
-            currentPath: [...prevState.currentPath, { x, y }]
-        }), () => {
-            this.redrawCanvas();
-        });
+        this.processMove(x, y);
+    }
+
+    handleDocumentMove = (e) => {
+        if (!this.state.isDrawing) return;
+        const canvas = this.canvasRef.current;
+        const rect = canvas.getBoundingClientRect();
+
+        const scaleX = this.internalSize / rect.width;
+        const scaleY = this.internalSize / rect.height;
+
+        // Clamp coordinates to canvas bounds
+        const x = Math.max(0, Math.min(this.internalSize, (e.clientX - rect.left) * scaleX));
+        const y = Math.max(0, Math.min(this.internalSize, (e.clientY - rect.top) * scaleY));
+
+        this.processMove(x, y);
+    }
+
+    processMove = (x, y) => {
+        const { drawMode, shapeStart } = this.state;
+
+        if (drawMode === 'freehand') {
+            this.setState(prevState => ({
+                lastX: x,
+                lastY: y,
+                currentPath: [...prevState.currentPath, { x, y }]
+            }), () => {
+                this.redrawCanvas();
+            });
+        } else if (shapeStart) {
+            // Shape mode: generate preview
+            const shapePoints = this.generateShapePoints(shapeStart, { x, y }, drawMode);
+            this.setState({ shapePreview: shapePoints }, () => {
+                this.redrawCanvas();
+            });
+        }
+    }
+
+    handleDocumentEnd = () => {
+        // Remove document-level listeners
+        document.removeEventListener('mousemove', this.handleDocumentMove);
+        document.removeEventListener('mouseup', this.handleDocumentEnd);
+        this.handleEnd();
     }
 
     handleEnd = () => {
         if (!this.state.isDrawing) return;
-        if (this.state.currentPath.length > 1) {
-            this.setState(prevState => ({
-                isDrawing: false,
-                paths: [...prevState.paths, prevState.currentPath],
-                currentPath: []
-            }));
+
+        const { drawMode, currentPath, shapePreview } = this.state;
+
+        if (drawMode === 'freehand') {
+            if (currentPath.length > 1) {
+                this.setState(prevState => ({
+                    isDrawing: false,
+                    paths: [...prevState.paths, prevState.currentPath],
+                    currentPath: []
+                }));
+            } else {
+                this.setState({ isDrawing: false, currentPath: [] });
+            }
         } else {
-            this.setState({ isDrawing: false, currentPath: [] });
+            // Shape mode: add preview to paths
+            if (shapePreview && shapePreview.length > 1) {
+                this.setState(prevState => ({
+                    isDrawing: false,
+                    paths: [...prevState.paths, shapePreview],
+                    shapeStart: null,
+                    shapePreview: null
+                }));
+            } else {
+                this.setState({ isDrawing: false, shapeStart: null, shapePreview: null });
+            }
         }
     }
 
@@ -301,6 +436,7 @@ class Kaleidoscope extends Component {
         });
         const corners = getCornerCoordinates(config);
 
+
         return (
             <div className="kaleidoscope-page">
                 <Card className="kaleidoscope-settings bg-dark text-white">
@@ -309,11 +445,57 @@ class Kaleidoscope extends Component {
                     </Card.Header>
                     <Card.Body>
                         <Form.Group className="mb-3">
+                            <Form.Label className="small">Draw Tool</Form.Label>
+                            <ButtonGroup className="w-100">
+                                <Button
+                                    variant={this.state.drawMode === 'freehand' ? 'info' : 'outline-secondary'}
+                                    size="sm"
+                                    onClick={() => this.setState({ drawMode: 'freehand' })}
+                                    title="Freehand"
+                                >
+                                    <Pencil />
+                                </Button>
+                                <Button
+                                    variant={this.state.drawMode === 'line' ? 'info' : 'outline-secondary'}
+                                    size="sm"
+                                    onClick={() => this.setState({ drawMode: 'line' })}
+                                    title="Line"
+                                >
+                                    <Slash />
+                                </Button>
+                                <Button
+                                    variant={this.state.drawMode === 'circle' ? 'info' : 'outline-secondary'}
+                                    size="sm"
+                                    onClick={() => this.setState({ drawMode: 'circle' })}
+                                    title="Circle"
+                                >
+                                    <Circle />
+                                </Button>
+                                <Button
+                                    variant={this.state.drawMode === 'square' ? 'info' : 'outline-secondary'}
+                                    size="sm"
+                                    onClick={() => this.setState({ drawMode: 'square' })}
+                                    title="Square"
+                                >
+                                    <Square />
+                                </Button>
+                                <Button
+                                    variant={this.state.drawMode === 'triangle' ? 'info' : 'outline-secondary'}
+                                    size="sm"
+                                    onClick={() => this.setState({ drawMode: 'triangle' })}
+                                    title="Triangle"
+                                >
+                                    <Triangle />
+                                </Button>
+                            </ButtonGroup>
+                        </Form.Group>
+
+                        <Form.Group className="mb-3">
                             <Form.Label className="small">Segments: {segments}</Form.Label>
                             <Form.Control
                                 type="range"
                                 min={2}
-                                max={12}
+                                max={24}
                                 value={segments}
                                 onChange={(e) => this.setState({ segments: parseInt(e.target.value) })}
                             />
@@ -411,7 +593,6 @@ class Kaleidoscope extends Component {
                             onMouseDown={this.handleStart}
                             onMouseMove={this.handleMove}
                             onMouseUp={this.handleEnd}
-                            onMouseLeave={this.handleEnd}
                             onTouchStart={this.handleStart}
                             onTouchMove={this.handleMove}
                             onTouchEnd={this.handleEnd}

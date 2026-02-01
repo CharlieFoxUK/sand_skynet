@@ -387,7 +387,12 @@ class Feeder():
         # the status will then be prompted with the "?" command when necessary
         # the buffer will contain Bf:"usage of the buffer"
         if firmware.is_grbl(self._firmware):
-            self.send_gcode_command("$10=6")
+            # Only send GRBL config commands when IDLE (not during a drawing)
+            # GRBL rejects $ commands when not IDLE, causing Error 8
+            if not self.is_running():
+                self.send_gcode_command("$10=6")
+            else:
+                self.logger.info("Skipping $10 config - drawing in progress")
         
         # send the "on connection" script from the settings
         self.send_script(self.settings['scripts']['connected']["value"])

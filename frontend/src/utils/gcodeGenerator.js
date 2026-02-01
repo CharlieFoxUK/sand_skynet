@@ -9,6 +9,7 @@
  */
 
 import { canvasToGcode, centerNormalizedToGcode } from './coordinateTransform';
+import { clipPathToBoundary, getBoundsFromConfig } from './boundaryClipper';
 
 /**
  * Coordinate types for different canvas sources
@@ -27,13 +28,15 @@ export const CoordinateType = {
  * @param {number} options.feedrate - Feed rate for G1 moves (default: 2000)
  * @param {string} options.coordinateType - One of CoordinateType values
  * @param {Object} options.canvasSize - {width, height} required for CANVAS type
+ * @param {boolean} options.clipToBoundary - Whether to clip paths to boundary (default: true)
  * @returns {string} G-code string
  */
 export function generateGCode(paths, config, options = {}) {
     const {
         feedrate = 2000,
         coordinateType = CoordinateType.CANVAS,
-        canvasSize = { width: 1, height: 1 }
+        canvasSize = { width: 1, height: 1 },
+        clipToBoundary = true
     } = options;
 
     // Select transform function based on coordinate type
@@ -49,6 +52,9 @@ export function generateGCode(paths, config, options = {}) {
             break;
     }
 
+    // Get boundary limits for clipping
+    const bounds = getBoundsFromConfig(config);
+
     let gcode = "";
     let firstMove = true;
     let firstCut = true;
@@ -56,28 +62,37 @@ export function generateGCode(paths, config, options = {}) {
     for (const path of paths) {
         if (!path || path.length === 0) continue;
 
+        // Step 1: Transform all points to G-code coordinates
+        const transformedPath = [];
+        for (const point of path) {
+            if (point.isBreak || isNaN(point.x) || isNaN(point.y)) {
+                transformedPath.push({ ...point, isBreak: true });
+            } else {
+                const gp = transform(point.x, point.y);
+                if (!isNaN(gp.x) && !isNaN(gp.y)) {
+                    transformedPath.push(gp);
+                }
+            }
+        }
+
+        // Step 2: Clip to boundary (if enabled)
+        const clippedPath = clipToBoundary ? clipPathToBoundary(transformedPath, bounds) : transformedPath;
+
+        // Step 3: Generate G-code from clipped path
         let needsRapidMove = true;
 
-        for (let i = 0; i < path.length; i++) {
-            const point = path[i];
+        for (let i = 0; i < clippedPath.length; i++) {
+            const point = clippedPath[i];
 
-            // Handle stroke breaks (NaN coordinates or isBreak flag)
+            // Handle stroke breaks
             if (point.isBreak || isNaN(point.x) || isNaN(point.y)) {
                 needsRapidMove = true;
                 continue;
             }
 
-            const gp = transform(point.x, point.y);
-
-            // Validate transformed coordinates
-            if (isNaN(gp.x) || isNaN(gp.y)) {
-                console.error("NaN coordinates after transform:", point, "->", gp);
-                continue;
-            }
-
             if (needsRapidMove) {
                 // G0 = rapid move (travel without drawing)
-                gcode += `G0 X${gp.x.toFixed(3)} Y${gp.y.toFixed(3)}`;
+                gcode += `G0 X${point.x.toFixed(3)} Y${point.y.toFixed(3)}`;
                 if (firstMove) {
                     gcode += " ; TYPE: PRE-TRANSFORMED";
                     firstMove = false;
@@ -86,7 +101,7 @@ export function generateGCode(paths, config, options = {}) {
                 needsRapidMove = false;
             } else {
                 // G1 = linear interpolation (drawing move)
-                gcode += `G1 X${gp.x.toFixed(3)} Y${gp.y.toFixed(3)}`;
+                gcode += `G1 X${point.x.toFixed(3)} Y${point.y.toFixed(3)}`;
                 if (firstCut) {
                     gcode += ` F${feedrate}`;
                     firstCut = false;

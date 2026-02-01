@@ -1,26 +1,26 @@
 import React, { Component } from 'react';
 import { connect } from 'react-redux';
 
-import { Col, Form, OverlayTrigger, Row, Tooltip } from "react-bootstrap";
+import { Form, OverlayTrigger, Tooltip } from "react-bootstrap";
 import { queueSetInterval } from '../../../sockets/sEmits';
 import { getIntervalValue, getIsQueuePaused } from './selector';
 import { setInterval } from './Queue.slice';
 
 const mapStateToProps = state => {
     return {
-        intervalValue:  getIntervalValue(state),
-        isPause:        getIsQueuePaused(state)
+        intervalValue: getIntervalValue(state),
+        isPause: getIsQueuePaused(state)
     }
 }
 
 const mapDispatchToProps = dispatch => {
     return {
-        setInterval: (interval) => dispatch(setInterval(interval)) 
+        setInterval: (interval) => dispatch(setInterval(interval))
     }
 }
 
-class IntervalControl extends Component{
-    constructor(props){
+class IntervalControl extends Component {
+    constructor(props) {
         super();
         this.state = {
             intervalValue: props.intervalValue,
@@ -28,58 +28,65 @@ class IntervalControl extends Component{
         }
     }
 
-    saveInterval(){
+    saveInterval() {
         queueSetInterval(this.state.intervalValue);
         this.props.setInterval(this.state.intervalValue);
     }
 
-    componentDidUpdate(){
-        if (this.props.intervalValue !== this.state.intervalValue && !this.state.isChanging){
-            this.setState({...this.state, intervalValue: this.props.intervalValue});
+    componentDidUpdate() {
+        if (this.props.intervalValue !== this.state.intervalValue && !this.state.isChanging) {
+            this.setState({ ...this.state, intervalValue: this.props.intervalValue });
         }
     }
 
-    slideEnd(evt){
-        this.setState({...this.state, intervalValue: evt.target.value, isChanging: false},
+    slideEnd(evt) {
+        this.setState({ ...this.state, intervalValue: evt.target.value, isChanging: false },
             this.saveInterval.bind(this));
     }
 
-    render(){
-        let tip = "Select 0 to run the drawings continuously, otherwise select the time interval that should be used between different drawings";
-        if (this.props.isPause)
-            tip = "It is not possible to change the time interval while the current element is paused";
+    formatInterval(value) {
+        const hours = Math.floor(value);
+        const minutes = Math.round((value - hours) * 60);
+        if (hours === 0 && minutes === 0) return 'Continuous';
+        if (hours === 0) return `${minutes}m`;
+        if (minutes === 0) return `${hours}h`;
+        return `${hours}h ${minutes}m`;
+    }
+
+    render() {
+        let tip = this.props.isPause
+            ? "Cannot change interval while paused"
+            : "Time to wait between drawings (0 = continuous)";
+
         return <OverlayTrigger
-            overlay={
-            <Tooltip>
-                {tip}
-            </Tooltip>}
-            delay={{ show: 3000, hide: 250 }}
-            placement="bottom">
-                <Form className="p-2 infos-box center align-items-center w-100 mb-5 mt-5">
-                <div>
-                <Form.Label>
-                    Interval between drawings
-                </Form.Label>
-                <div>
-                    Current value: {this.state.intervalValue}h
+            overlay={<Tooltip>{tip}</Tooltip>}
+            delay={{ show: 1000, hide: 250 }}
+            placement="top">
+            <Form className="p-3 bg-dark rounded text-center" style={{ maxWidth: '400px', margin: '0 auto' }}>
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                    <Form.Label className="mb-0 small text-muted">
+                        Interval between drawings
+                    </Form.Label>
+                    <span className="badge bg-info">
+                        {this.formatInterval(this.state.intervalValue)}
+                    </span>
                 </div>
-                <Row>
-                    <Col sm={1} className="pr-3">0h</Col>
-                    <Col sm={8}>
-                        <Form.Control type="range" 
-                            value={this.state.intervalValue}
-                            disabled={this.props.isPause}
-                            min={0}
-                            step={0.5}
-                            max={24}
-                            onChange={(evt) => {
-                                this.setState({...this.state, intervalValue: evt.target.value, isChanging: true});
-                            }}
-                            onTouchEnd={this.slideEnd.bind(this)}
-                            onMouseUp={this.slideEnd.bind(this)}/>
-                    </Col>
-                    <Col sm={1} className="pl-2">24h</Col>
-                </Row>
+                <div className="d-flex align-items-center">
+                    <span className="small text-muted me-2" style={{ minWidth: '20px' }}>0</span>
+                    <Form.Control
+                        type="range"
+                        value={this.state.intervalValue}
+                        disabled={this.props.isPause}
+                        min={0}
+                        step={0.5}
+                        max={24}
+                        className="flex-grow-1"
+                        onChange={(evt) => {
+                            this.setState({ ...this.state, intervalValue: evt.target.value, isChanging: true });
+                        }}
+                        onTouchEnd={this.slideEnd.bind(this)}
+                        onMouseUp={this.slideEnd.bind(this)} />
+                    <span className="small text-muted ms-2" style={{ minWidth: '30px' }}>24h</span>
                 </div>
             </Form>
         </OverlayTrigger>

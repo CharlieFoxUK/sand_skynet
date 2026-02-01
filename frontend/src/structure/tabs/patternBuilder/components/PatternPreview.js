@@ -114,7 +114,7 @@ function PatternPreview({ layers, settings }) {
                         d={layer.pathData}
                         fill="none"
                         stroke={layer.color}
-                        strokeWidth="0.02"
+                        strokeWidth="0.008"
                         strokeLinecap="round"
                         strokeLinejoin="round"
                     />

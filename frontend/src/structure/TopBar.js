@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { Navbar, Dropdown } from 'react-bootstrap';
-import { ChevronCompactLeft, List, Shuffle, ArrowRepeat, StopFill } from 'react-bootstrap-icons';
+import { ChevronCompactLeft, List, Shuffle, ArrowRepeat, StopFill, PlayFill, PauseFill, Eye } from 'react-bootstrap-icons';
 import { connect } from 'react-redux';
 
 import IconButton from '../components/IconButton';
@@ -10,7 +10,8 @@ import GrblAlertBanner from '../components/GrblAlertBanner';
 import { getTab, showBack } from './tabs/selector';
 import { setTab, tabBack } from './tabs/Tabs.slice';
 import { showLEDs, systemIsLinux, updateDockerComposeLatest } from './tabs/settings/selector';
-import { settingsRebootSystem, settingsShutdownSystem, queueStartRandom, queueStopAll, queueSetRepeat, queueSetShuffle } from '../sockets/sEmits';
+import { getIsQueuePaused, getQueueIsRunning } from './tabs/queue/selector';
+import { settingsRebootSystem, settingsShutdownSystem, queueStartRandom, queueStopAll, queueSetRepeat, queueSetShuffle, drawingPause, drawingResume } from '../sockets/sEmits';
 
 const mapStateToProps = (state) => {
     return {
@@ -18,7 +19,9 @@ const mapStateToProps = (state) => {
         isLinux: systemIsLinux(state),
         showLEDs: showLEDs(state),
         selectedTab: getTab(state),
-        dockerComposeUpdateAvailable: updateDockerComposeLatest(state)
+        dockerComposeUpdateAvailable: updateDockerComposeLatest(state),
+        isPaused: getIsQueuePaused(state),
+        isRunning: getQueueIsRunning(state)
     }
 }
 
@@ -45,6 +48,30 @@ class TopBar extends Component {
         queueStartRandom();
     }
 
+    renderPausePlay() {
+        if (!this.props.isRunning) return null;
+
+        if (this.props.isPaused)
+            return <IconButton
+                className="mr-2"
+                style={{ backgroundColor: 'transparent', border: 'none', color: 'white', fontSize: '1.2rem', padding: '0.1rem 0.3rem' }}
+                onClick={() => { drawingResume(); }}
+                icon={PlayFill}
+                iconMedium={true}
+                tip="Resume current drawing"
+            >
+            </IconButton>
+        else return <IconButton
+            className="mr-2"
+            style={{ backgroundColor: 'transparent', border: 'none', color: 'white', fontSize: '1.2rem', padding: '0.1rem 0.3rem' }}
+            onClick={() => { drawingPause(); }}
+            icon={PauseFill}
+            iconMedium={true}
+            tip="Pause current drawing"
+        >
+        </IconButton>
+    }
+
     render() {
         return <div>
             <Navbar bg="primary" sticky="top" className="center justify-content-between px-3 py-0" style={{ minHeight: '40px' }}>
@@ -55,6 +82,21 @@ class TopBar extends Component {
                 </div>
 
                 <div className="d-flex align-items-center">
+
+                    {/* Queue/Eye Button */}
+                    <IconButton
+                        className="mr-2"
+                        style={{ backgroundColor: 'transparent', border: 'none', color: 'white', fontSize: '1.2rem', padding: '0.1rem 0.3rem' }}
+                        onClick={() => { this.props.handleTab("queue") }}
+                        icon={Eye}
+                        iconMedium={true}
+                        tip="View drawing queue"
+                    >
+                    </IconButton>
+
+                    {/* Play/Pause Button */}
+                    {this.renderPausePlay()}
+
                     {/* Stop Button */}
                     <IconButton
                         className="mr-2"

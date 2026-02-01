@@ -456,9 +456,9 @@ class Spirograph extends Component {
                             <Form.Control
                                 type="range"
                                 min={12}
-                                max={Math.floor(fixedTeeth * 0.9)}
+                                max={135}
                                 step={3}
-                                value={Math.min(movingTeeth, Math.floor(fixedTeeth * 0.9))}
+                                value={movingTeeth}
                                 onChange={(e) => { this.reset(); this.setState({ movingTeeth: parseInt(e.target.value) }); }}
                             />
                         </Form.Group>
