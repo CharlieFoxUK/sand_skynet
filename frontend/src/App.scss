@@ -294,3 +294,22 @@ button.react-multiple-carousel__arrow:hover {
 .no-caret::after {
     display: none !important;
 }
+
+/* Dark form control placeholder styling - make placeholder text more readable */
+.form-control.bg-secondary::placeholder {
+    color: #adb5bd;
+    /* Light grey placeholder text */
+    opacity: 1;
+}
+
+.form-control.bg-secondary::-webkit-input-placeholder {
+    color: #adb5bd;
+}
+
+.form-control.bg-secondary::-moz-placeholder {
+    color: #adb5bd;
+}
+
+.form-control.bg-secondary:-ms-input-placeholder {
+    color: #adb5bd;
+}

@@ -67,7 +67,7 @@ class Canvas extends Component {
 
             // Available space calculation
             // Sidebar is 320px on desktop
-            const sidebarWidth = isMobile ? 0 : 320;
+            const sidebarWidth = isMobile ? 0 : 480;
             const availableWidth = viewportWidth - sidebarWidth - 40; // 40px margin
             const availableHeight = viewportHeight - 100; // Header offset
 
@@ -585,22 +585,22 @@ class Canvas extends Component {
 
                         <div className="mb-4">
                             <label className="form-label text-white small">Add Single-Line Text</label>
-                            <InputGroup className="mb-2">
-                                <InputGroup.Prepend>
-                                    <InputGroup.Text className="bg-dark text-white border-secondary"><Type /></InputGroup.Text>
-                                </InputGroup.Prepend>
-                                <Form.Control
-                                    type="text"
-                                    className="bg-secondary text-white border-secondary"
-                                    value={textInput}
-                                    placeholder="HELLO"
-                                    onChange={(e) => this.setState({ textInput: e.target.value.toUpperCase() })}
-                                />
-                                <InputGroup.Append>
-                                    <Button variant="info" onClick={() => this.addElement('text')}>Add</Button>
-                                </InputGroup.Append>
-                            </InputGroup>
-                            <small className="text-muted">A-Z, 0-9 only (Stick Font)</small>
+                            <Form.Control
+                                type="text"
+                                className="bg-secondary text-white border-secondary mb-2"
+                                value={textInput}
+                                placeholder="Enter text (A-Z, 0-9)"
+                                onChange={(e) => this.setState({ textInput: e.target.value.toUpperCase() })}
+                            />
+                            <Button
+                                variant="info"
+                                size="sm"
+                                className="w-100"
+                                onClick={() => this.addElement('text')}
+                            >
+                                Add Text to Canvas
+                            </Button>
+                            <small className="text-muted d-block mt-1">Stick font style</small>
                         </div>
 
                         <div className="mb-4 pt-3 border-top border-secondary">

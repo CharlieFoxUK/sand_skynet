@@ -153,7 +153,7 @@ class TopBar extends Component {
                             <Dropdown.Item
                                 active={this.props.selectedTab === "canvas"}
                                 onClick={() => { this.props.handleTab("canvas") }}>
-                                Canvas
+                                Draw on Canvas
                             </Dropdown.Item>
                             <Dropdown.Item
                                 active={this.props.selectedTab === "patternBuilder"}
@@ -175,6 +175,11 @@ class TopBar extends Component {
                                 onClick={() => { this.props.handleTab("spirograph") }}>
                                 Spirograph
                             </Dropdown.Item>
+                            <Dropdown.Item
+                                active={this.props.selectedTab === "scanner"}
+                                onClick={() => { this.props.handleTab("scanner") }}>
+                                Eye Scanner Beta
+                            </Dropdown.Item>
 
                             <Dropdown.Item
                                 active={this.props.selectedTab === "settings"}
@@ -186,7 +191,7 @@ class TopBar extends Component {
                             {this.props.isLinux && (
                                 <>
                                     <Dropdown.Divider className="my-3" />
-                                    <Dropdown.Header className="text-uppercase font-weight-bold text-danger">Power</Dropdown.Header>
+
                                     <Dropdown.Item className="text-danger font-weight-bold" onClick={() => settingsRebootSystem()}>
                                         Reboot System
                                     </Dropdown.Item>

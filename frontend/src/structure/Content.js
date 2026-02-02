@@ -22,6 +22,7 @@ import PatternBuilder from './tabs/patternBuilder/PatternBuilder';
 import EtchASketch from './tabs/etchASketch/EtchASketch';
 import Kaleidoscope from './tabs/kaleidoscope/Kaleidoscope';
 import Spirograph from './tabs/spirograph/Spirograph';
+import Scanner from './tabs/scanner/Scanner';
 
 
 const mapStateToProps = (state) => {
@@ -35,7 +36,8 @@ class Content extends Component {
 
     render() {
         // For Kaleidoscope, Spirograph, PatternBuilder, and Canvas we want full width layout
-        const isFullWidthObj = ['kaleidoscope', 'spirograph', 'patternBuilder', 'canvas'].includes(this.props.tab);
+        // For Kaleidoscope, Spirograph, PatternBuilder, Canvas, and Scanner we want full width layout
+        const isFullWidthObj = ['kaleidoscope', 'spirograph', 'patternBuilder', 'canvas', 'scanner'].includes(this.props.tab);
         const containerClasses = isFullWidthObj
             ? "w-100 text-light pb-5 mh100"
             : "max-width m-auto text-light pt-3 pb-5 mh100";
@@ -86,6 +88,9 @@ class Content extends Component {
                 </Tab>
                 <Tab eventKey="spirograph" title="Spirograph">
                     <Spirograph />
+                </Tab>
+                <Tab eventKey="scanner" title="Scanner">
+                    <Scanner />
                 </Tab>
 
             </Tabs>

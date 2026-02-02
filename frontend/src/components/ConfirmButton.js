@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { Button, Row, Col } from 'react-bootstrap';
+import { Button } from 'react-bootstrap';
 import IconButton from './IconButton';
 
 class ConfirmButton extends Component {
@@ -9,9 +9,9 @@ class ConfirmButton extends Component {
     }
 
     render() {
-        // TODO make this better
-        return <div className={this.props.className}>
-            <div className={"w-100" + (this.state.mustConfirm ? " d-none" : "")}>
+        return <div className={this.props.className} style={{ position: 'relative', display: 'inline-block' }}>
+            {/* Main button - always rendered to maintain size */}
+            <div style={{ visibility: this.state.mustConfirm ? 'hidden' : 'visible' }}>
                 <IconButton className="w-100 center"
                     onClick={() => this.setState({ mustConfirm: true })}
                     icon={this.props.icon}
@@ -19,31 +19,51 @@ class ConfirmButton extends Component {
                     {this.props.children}
                 </IconButton>
             </div>
-            <div className={this.state.mustConfirm ? "" : " d-none"}>
-                <Row>
-                    <Col>Are you sure?
-                    </Col>
-                </Row>
-                <Row>
-                    <Col>
+
+            {/* Confirmation overlay - positioned absolutely to not affect layout */}
+            {this.state.mustConfirm && (
+                <div style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    backgroundColor: 'rgba(30, 30, 30, 0.95)',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    zIndex: 10,
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)'
+                }}>
+                    <div style={{
+                        fontSize: '0.75rem',
+                        color: '#aaa',
+                        marginBottom: '6px',
+                        textAlign: 'center'
+                    }}>
+                        Are you sure?
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                         <Button
-                            className="btn-success"
+                            size="sm"
+                            variant="success"
                             onClick={(evt) => {
                                 this.setState({ mustConfirm: false });
                                 this.props.onClick(evt);
-                            }}>
+                            }}
+                            style={{ padding: '2px 12px', fontSize: '0.8rem' }}>
                             Yes
                         </Button>
-                    </Col>
-                    <Col>
                         <Button
-                            className="btn-danger"
-                            onClick={(evt) => this.setState({ mustConfirm: false })}>
+                            size="sm"
+                            variant="danger"
+                            onClick={(evt) => this.setState({ mustConfirm: false })}
+                            style={{ padding: '2px 12px', fontSize: '0.8rem' }}>
                             No
                         </Button>
-                    </Col>
-                </Row>
-            </div>
+                    </div>
+                </div>
+            )}
         </div>
     }
 }

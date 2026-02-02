@@ -1,0 +1,174 @@
+// Match layout of Spirograph/Kaleidoscope
+.scanner-page {
+    height: 100%;
+    display: flex;
+    flex-direction: row;
+    overflow: hidden;
+    background-color: #1a1a1a;
+}
+
+.scanner-settings {
+    width: 350px;
+    height: 100%;
+    border-radius: 0 !important;
+    border-right: 1px solid #343a40;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    flex-shrink: 0;
+
+    .card-body {
+        display: flex;
+        flex-direction: column;
+        padding-bottom: 50px;
+        position: relative;
+    }
+}
+
+.scanner-canvas-area {
+    flex-grow: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    padding: 20px;
+
+    /* CANVAS MODE */
+    .canvas-container {
+        position: relative;
+        transition: width 0.3s ease, height 0.3s ease;
+        z-index: 10;
+
+        .corner-label {
+            position: absolute;
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.4);
+            font-family: monospace;
+            pointer-events: none;
+            z-index: 20;
+
+            &.top-left {
+                top: -18px;
+                left: 0;
+            }
+
+            &.top-right {
+                top: -18px;
+                right: 0;
+            }
+
+            &.bottom-left {
+                bottom: -18px;
+                left: 0;
+            }
+
+            &.bottom-right {
+                bottom: -18px;
+                right: 0;
+            }
+        }
+
+        .canvas-placeholder {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            color: #6c757d;
+            pointer-events: none;
+        }
+    }
+
+    /* CAMERA MODE */
+    .camera-fullscreen-container {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+
+        .video-crop-window {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            aspect-ratio: 1 / 1; // Force square container for the preview area
+            overflow: hidden;
+            border-radius: 12px;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+            background: #000;
+
+            video {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                /* Note: The 'transform' for zoom is applied inline in JS 
+                   to the video element. object-fit: cover ensures the video 
+                   fills the square box, cropping the edges by default. 
+                   The JS logic must account for this 'cover' cropping when 
+                   calculating what to draw! 
+                   
+                   Actually, usually video is 16:9 or 4:3.
+                   If we set container to square and object-fit: cover, CSS centers it.
+                */
+            }
+
+
+
+
+        }
+
+        .capture-guide-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 10;
+
+            // Use a thick border as the "dimmer"
+            // OR box-shadow (inset) can't really do a "frame" easily if zoom changes.
+            // But wait, the video zooms INSIDE this box. 
+            // The box stays fixed size.
+            // So we just want a nice border to show "This is the image".
+            border: 2px solid rgba(255, 255, 255, 0.5);
+
+            // Add a "grid" or crosshair?
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            .guide-box {
+                width: 250px;
+                height: 250px;
+                border: 1px dashed rgba(255, 255, 255, 0.3);
+                border-radius: 50%; // Circle guide for spiral?
+                // Actually spiral fills the square.
+            }
+        }
+    }
+}
+}
+
+@media (max-width: 991px) {
+    .scanner-page {
+        flex-direction: column;
+        overflow-y: auto;
+    }
+
+    .scanner-settings {
+        width: 100%;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid #343a40;
+    }
+
+    .scanner-canvas-area {
+        height: auto;
+        min-height: 500px;
+    }
+}
