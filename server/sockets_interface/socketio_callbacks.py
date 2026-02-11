@@ -206,6 +206,15 @@ def queue_stop_all():
     queue_set_order("")
     app.qmanager.stop()
 
+# removes an element from the queue by index
+@socketio.on("queue_remove_item")
+def queue_remove_item(index):
+    idx = int(index)
+    if idx == -1:
+        app.qmanager.remove_current()
+    else:
+        app.qmanager.remove_at_index(idx)
+
 # sets the repeat flag for the queue
 @socketio.on("queue_set_repeat")
 def queue_set_repeat(val):
@@ -252,4 +261,5 @@ def control_emergency_stop():
 @socketio.on("control_soft_reset")
 def control_soft_reset():
     app.feeder.soft_reset()
+    app.qmanager.clear_queue() # Clear queue on soft reset
     app.semits.show_toast_on_UI("Soft Reset sent (Ctrl-X)")

@@ -149,7 +149,7 @@ button:hover,
 }
 
 .glass {
-    background-color: rgba(83, 83, 83, 0.5);
+    background-color: $dark;
 }
 
 @supports (-webkit-backdrop-filter: none) or (backdrop-filter: none) {

@@ -3,7 +3,7 @@ import { ReactSortable } from 'react-sortablejs';
 import { Col } from 'react-bootstrap';
 
 import { getElementClass } from '../structure/tabs/playlists/SinglePlaylist/Elements';
-import { X } from 'react-bootstrap-icons';
+import { Trash } from 'react-bootstrap-icons';
 import { listsAreEqual } from '../utils/dictUtils';
 
 class SortableElements extends Component {
@@ -36,8 +36,14 @@ class SortableElements extends Component {
     }
 
     removeElement(idx) {
-        let newList = this.state.list.filter((el, key) => { return key !== idx });
-        this.setState({ ...this.state, list: newList, edited: true }, () => this.prepareUpdate(newList));
+        // If onRemove callback is provided, call it (for queue functionality)
+        if (this.props.onRemove) {
+            this.props.onRemove(idx);
+        } else {
+            // Default behavior: update local state and propagate
+            let newList = this.state.list.filter((el, key) => { return key !== idx });
+            this.setState({ ...this.state, list: newList, edited: true }, () => this.prepareUpdate(newList));
+        }
     }
 
     render() {
@@ -74,12 +80,15 @@ class SortableElements extends Component {
 
                 let ElementType = getElementClass(el);
 
-                return <ElementCard key={idx}
+                return <ElementCard key={el.uuid || idx}
                     handleUnmount={() => this.removeElement(idx)}
-                    showCross={this.state.showChildCross}>
+                    showCross={this.state.showChildCross}
+                    alwaysShowRemove={this.props.alwaysShowRemove}
+                    disableClick={this.props.disableClick}>
                     <ElementType element={el}
                         onOptionsChange={(el) => this.props.onElementOptionsChange(el)}
-                        hideOptions={this.props.hideOptions} />
+                        hideOptions={this.props.hideOptions}
+                        disableModal={this.props.disableClick} />
                 </ElementCard>
             })}
         </ReactSortable>
@@ -90,9 +99,7 @@ class ElementCard extends React.Component {
     constructor(props) {
         super(props);
         this.state = {
-            active: true,
             showCross: false,
-            unmounted: false
         }
     }
 
@@ -104,26 +111,28 @@ class ElementCard extends React.Component {
         this.setState({ ...this.state, showCross: false });
     }
 
-    onTransitionEnd() {
-        if (!this.state.active && !this.state.unmounted) {
-            this.setState({ ...this.state, unmounted: true, active: true }, () => this.props.handleUnmount(this));
-            // TODO check if it is deleting only one element at a time from the list
-        }
-    }
-
     render() {
-        return <Col sm={4} className={"mb-3" + (this.state.active ? "" : " disappear")}
-            title="Drag me around to sort the list"
-            onTransitionEnd={this.onTransitionEnd.bind(this)}>
+        return <Col sm={4} className={"mb-3"}
+            title="Drag me around to sort the list">
             <div key={1} className="pb100 position-absolute rounded"></div>
-            <div key={2} className="card hover-zoom bg-black rounded clickable"
+            <div key={2} className={"card hover-zoom bg-black rounded" + (this.props.disableClick ? "" : " clickable")}
                 onMouseEnter={this.showCross.bind(this)}
                 onMouseLeave={this.hideCross.bind(this)}>
-                {React.cloneElement(this.props.children, { onClick: this.hideCross.bind(this) })}     {/* adding an "onclick" method to hide the cross when the child is clicked and the modal is open */}
+                {this.props.disableClick
+                    ? this.props.children
+                    : React.cloneElement(this.props.children, { onClick: this.hideCross.bind(this) })}
                 <div className="card-img-overlay show-cross">
-                    <div className={"justify-content-md-center btn-cross nodrag rounded" + (this.state.showCross && this.props.showCross ? " show" : "")}
-                        onClick={() => { this.setState({ active: false }) }}
-                        title="Remove this drawing from the list"><X /></div>
+                    <div className={"justify-content-md-center btn-cross nodrag rounded" + ((this.state.showCross || this.props.alwaysShowRemove) && this.props.showCross ? " show" : "")}
+                        onMouseDown={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                        }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            this.props.handleUnmount();
+                        }}
+                        title="Remove this drawing from the list"><Trash /></div>
                 </div>
             </div>
         </Col>

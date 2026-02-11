@@ -107,6 +107,11 @@ function queueStopAll() {
     window.showToast(<div>Stopping the device...</div>);
 }
 
+// remove item from queue by index
+function queueRemoveItem(index) {
+    socket.emit("queue_remove_item", index);
+}
+
 // updates the value of the "repeat" flag
 function queueSetRepeat(val) {
     socket.emit("queue_set_repeat", val);
@@ -164,6 +169,7 @@ export {
     queueSetOrder,
     queueNextDrawing,
     queueStopAll,
+    queueRemoveItem,
     queueSetRepeat,
     queueSetShuffle,
     queueSetInterval,

@@ -149,7 +149,6 @@ class QueueManager():
                 self.q.put(el)
         self.send_queue_status()
     
-    # remove the first element with the given code
     def remove(self, code):
         tmp = Queue()
         is_first = True
@@ -159,6 +158,24 @@ class QueueManager():
             else:
                 tmp.put(c)
         self.q = tmp
+
+    # remove the element at the given index
+    def remove_at_index(self, index):
+        if index < 0 or index >= self.q.qsize():
+            return
+        
+        tmp = Queue()
+        # Queue isn't indexable directly, so we iterate
+        for i, item in enumerate(list(self.q.queue)):
+            if i != index:
+                tmp.put(item)
+        self.q = tmp
+        self.send_queue_status()
+
+    def remove_current(self):
+        if self._element:
+            self._element._repeat_off = True # Prevent requeue if repeating
+        self.start_next(force_stop=True)
 
     # queue length
     def queue_length(self):

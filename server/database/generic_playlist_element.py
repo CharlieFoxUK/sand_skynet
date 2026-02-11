@@ -1,4 +1,5 @@
 import json
+import uuid
 
 from server.database.models import db
 
@@ -37,6 +38,7 @@ class GenericPlaylistElement():
 
     def __init__(self, element_type, **kwargs):
         self.element_type = element_type
+        self.uuid = str(uuid.uuid4())
         self._pop_options = []                                                                      # list of fields that are column in the database and must be removed from the standard options (string column)
         self.add_column_field("element_type")                                                       # need to pop the element_type from the final dict because this option is a column of the table
         for v in kwargs:

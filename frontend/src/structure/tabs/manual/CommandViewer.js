@@ -11,8 +11,11 @@ class CommandViewer extends Component {
         this.scrollDiv.current.scrollIntoView({ behaviour: "smooth", block: "nearest", inline: "start" });
     }
 
-    componentDidUpdate() {
-        this.scrollToBottom();
+    componentDidUpdate(prevProps) {
+        // Only scroll if a new command was added
+        if (prevProps.children.length !== this.props.children.length) {
+            this.scrollToBottom();
+        }
     }
 
     render() {

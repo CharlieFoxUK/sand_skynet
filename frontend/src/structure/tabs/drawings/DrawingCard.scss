@@ -18,6 +18,7 @@
 .card-img-overlay {
     opacity: 0;
     transition: opacity 0.2s ease-in-out;
+    z-index: 10;
 }
 
 // Show on hover of the parent card
@@ -32,4 +33,10 @@
 
 .card-highlight {
     border: 5px solid $primary;
+}
+
+.card-text {
+    background-color: $black !important;
+    opacity: 1 !important;
+    width: 100%;
 }

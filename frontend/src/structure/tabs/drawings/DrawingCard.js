@@ -40,13 +40,13 @@ class DrawingCard extends Component {
         return <DrawingCardMenu onStartDrawing={(id) => drawingQueue(id)} drawing={this.props.drawing}>
             <Card className="p-2 hover-zoom" onClick={() => this.props.showSingleDrawing(this.props.drawing.id)}>
 
-                <div className={"border-0 bg-black rounded text-dark clickable center p-0"} style={{ overflow: 'hidden', aspectRatio: '1' }}>
+                <div className={"border-0 bg-black rounded text-dark clickable center p-0 position-relative"} style={{ overflow: 'hidden', aspectRatio: '1', position: 'relative' }}>
                     <GCodePreview
                         drawingId={this.props.drawing.id}
                         className={"card-img-top rounded" + highlight}
                     />
-                    <div className="card-img-overlay h-100 d-flex flex-column justify-content-end p-2" style={{ pointerEvents: 'none' }}>
-                        <div className="card-text text-center text-primary p-1 glass rounded-bottom">
+                    <div className="card-img-overlay h-100 d-flex flex-column justify-content-end p-0" style={{ pointerEvents: 'none' }}>
+                        <div className="card-text text-center text-primary p-1 w-100" style={{ backgroundColor: '#000', opacity: 1 }}>
                             {this.props.drawing.filename.replace(/\.gcode$/i, '')}
                         </div>
                     </div>

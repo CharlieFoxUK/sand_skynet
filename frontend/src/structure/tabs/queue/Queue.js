@@ -2,14 +2,14 @@ import React, { Component } from 'react';
 import { Button, Col, Container, Row } from 'react-bootstrap';
 import { connect } from 'react-redux';
 
-import { Section, Subsection } from '../../../components/Section';
-import SortableElements from '../../../components/SortableElements';
-
-import { queueStatus } from '../../../sockets/sCallbacks';
-import { queueGetStatus, queueSetOrder } from '../../../sockets/sEmits';
-
-import { listsAreEqual } from '../../../utils/dictUtils';
 import { getElementClass } from '../playlists/SinglePlaylist/Elements';
+import IconButton from '../../../components/IconButton';
+import { Trash } from 'react-bootstrap-icons';
+import { listsAreEqual } from '../../../utils/dictUtils';
+import { queueStatus } from '../../../sockets/sCallbacks';
+import { queueGetStatus, queueSetOrder, queueNextDrawing, queueRemoveItem } from '../../../sockets/sEmits';
+import SortableElements from '../../../components/SortableElements';
+import { Section, Subsection } from '../../../components/Section';
 
 import { getIsQueuePaused, getQueueCurrent, getQueueElements, getQueueEmpty, getQueueProgress } from './selector';
 import { isViewQueue } from '../selector';
@@ -77,7 +77,10 @@ class Queue extends Component {
                     <SortableElements
                         list={this.state.elements}
                         onUpdate={this.handleSortableUpdate.bind(this)}
-                        hideOptions={true}>
+                        onRemove={(idx) => queueRemoveItem(idx)}
+                        hideOptions={true}
+                        alwaysShowRemove={true}
+                        disableClick={true}>
                     </SortableElements>
                 </Subsection>
             }
@@ -103,6 +106,17 @@ class Queue extends Component {
                             <div className="p-0 position-relative w-100">
                                 <ElementType element={this.props.currentElement}
                                     hideOptions={"true"} />
+                                <div className="position-absolute top-0 end-0 p-2 d-flex align-items-center">
+                                    <div className="mr-2 text-danger font-weight-bold bg-white rounded p-1 shadow-sm" style={{ fontSize: "0.8rem" }}>
+                                        Stopping and deleting can take up to 10s
+                                    </div>
+                                    <IconButton
+                                        className="btn btn-danger text-light shadow"
+                                        onClick={() => queueRemoveItem(-1)}
+                                        icon={Trash}
+                                        tip="Stop and Remove this drawing">
+                                    </IconButton>
+                                </div>
                             </div>
                         </Col>
                     </Row>
