@@ -24,7 +24,7 @@ from server.utils.logging_utils import server_stream_handler, server_file_handle
 settings_utils.update_settings_file_version()
 
 # Shows ipv4 adresses
-print("\nTo run the server use 'ip:5000' in your browser with one of the following ip adresses: {}\n".format(str(get_ip4_addresses())), flush=True)
+print("\nTo run the server use 'http://<ip>' in your browser with one of the following ip adresses: {}\n".format(str(get_ip4_addresses())), flush=True)
 
 # Logging setup
 load_dotenv()

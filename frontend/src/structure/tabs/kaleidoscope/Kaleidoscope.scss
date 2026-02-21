@@ -1,134 +1,143 @@
 /* Kaleidoscope Page Styles */
+@import '../../../_colors.scss';
 
 .kaleidoscope-page {
     display: flex;
-    min-height: calc(100vh - 70px);
+    flex-direction: column;
+    min-height: calc(100vh - 80px);
+    position: relative;
+    padding: 0 10px;
+    padding-bottom: 20px;
+    overflow-x: hidden;
     background: #121212;
 }
 
-/* Fixed Settings Sidebar */
-.kaleidoscope-settings {
-    width: 480px;
-    flex-shrink: 0;
-    /* Prevent shrinking */
-    /* Remove fixed positioning to flow with page */
-    border-radius: 0;
-    border-right: 1px solid #333;
+.kaleidoscope-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 10px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+    gap: 10px;
+    position: sticky;
+    top: 0;
     z-index: 50;
-    /* Optional: Sticky positioning if user wants it to stick to top while scrolling, 
-       but "not independent" implies they might want normal flow. 
-       Let's use sticky so it stays visible but is part of flow?
-       Actually user said "lock it to the top title bar so it is not independent of the page scrolling"
-       If it is sticky, it IS somewhat independent. 
-       "not independent" -> likely means scroll WITH page.
-       So standard static (flex) positioning.
-    */
-    min-height: calc(100vh - 60px);
+    backdrop-filter: blur(10px);
 
-    .card-header {
-        background: #1a1a1a;
-        border-bottom: 1px solid #333;
+    h4 {
+        color: $primary;
+        font-weight: bold;
+        margin: 0;
+        font-size: 1.2rem;
+    }
+}
+
+.kaleidoscope-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+
+    button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        padding: 6px 12px;
+        min-width: 40px;
     }
 
-    .card-body {
-        background: #222;
-    }
+    .tool-group {
+        margin-right: 15px;
 
-    .form-range {
+        button {
+            padding: 6px 10px;
+            min-width: unset;
+        }
+    }
+}
+
+.kaleidoscope-canvas-wrapper {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    position: relative;
+    flex: 1;
+    padding: 5px;
+
+}
+
+.kaleidoscope-canvas {
+    border: 3px solid $primary;
+    border-radius: 12px;
+    box-shadow:
+        0 0 40px rgba($primary, 0.2),
+        0 10px 40px rgba(0, 0, 0, 0.5),
+        inset 0 0 60px rgba(0, 0, 0, 0.3);
+    background: #0d0d0d;
+    touch-action: none;
+    cursor: crosshair;
+    transition: box-shadow 0.3s ease;
+
+    &:hover {
+        box-shadow: 0 0 60px rgba($primary, 0.5);
+    }
+}
+
+.instruction-text {
+    margin-top: 15px;
+    margin-bottom: 5px;
+}
+
+/* Inline Settings Panel Styling */
+.kaleidoscope-inline-settings {
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    transition: all 0.3s ease;
+
+    .custom-range {
         &::-webkit-slider-thumb {
-            background: #20c997;
+            background: $primary;
         }
 
         &::-moz-range-thumb {
-            background: #20c997;
+            background: $primary;
         }
+    }
+
+    .custom-switch .custom-control-input:checked~.custom-control-label::before {
+        background-color: $primary;
+        border-color: $primary;
     }
 }
 
-/* Canvas Area */
-.kaleidoscope-canvas-area {
-    flex: 1;
-    /* margin-left: 280px; Removed since we are using flexbox */
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    padding: 20px;
-    min-height: calc(100vh - 70px);
-    position: relative;
-
-    .canvas-container {
-        position: relative;
-    }
-
-    .corner-label {
-        position: absolute;
-        font-size: 11px;
-        color: #20c997;
-        font-family: monospace;
-        z-index: 10;
-        pointer-events: none;
-        /* Let clicks pass through to canvas */
-
-        &.top-left {
-            top: -20px;
-            left: 0;
-        }
-
-        &.top-right {
-            top: -20px;
-            right: 0;
-        }
-
-        &.bottom-left {
-            bottom: -25px;
-            left: 0;
-        }
-
-        &.bottom-right {
-            bottom: -25px;
-            right: 0;
-        }
-    }
-}
-
-/* Mobile Layout */
+/* Responsive */
 @media (max-width: 768px) {
-    .kaleidoscope-page {
-        flex-direction: column;
+    .kaleidoscope-header {
+        padding: 8px 12px;
+
+        h4 {
+            font-size: 1rem;
+        }
     }
 
-    .kaleidoscope-settings {
-        position: relative;
-        top: 0;
-        width: 100%;
-        height: auto;
-        max-height: 40vh;
-        border-right: none;
-        border-bottom: 1px solid #333;
-    }
+    .kaleidoscope-controls {
+        gap: 6px;
 
-    .kaleidoscope-canvas-area {
-        margin-left: 0;
-        min-height: 60vh;
-        padding: 15px;
-    }
-}
+        button {
+            padding: 5px 10px;
+            font-size: 0.85rem;
+        }
 
-/* Canvas hover effect */
-.kaleidoscope-canvas-area canvas:hover {
-    box-shadow: 0 0 60px rgba(32, 201, 151, 0.5);
-}
+        .tool-group {
+            margin-right: 5px;
 
-/* Animations */
-@keyframes kaleidoscope-glow {
-
-    0%,
-    100% {
-        box-shadow: 0 0 30px rgba(32, 201, 151, 0.3);
-    }
-
-    50% {
-        box-shadow: 0 0 50px rgba(32, 201, 151, 0.5);
+            button {
+                padding: 4px 8px;
+            }
+        }
     }
 }

@@ -1,11 +1,11 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { Form, Button, Modal, InputGroup } from 'react-bootstrap';
-import { Trash, Download, Broadcast, Gear, Upload } from 'react-bootstrap-icons';
+import { Trash, Broadcast, Gear, Upload } from 'react-bootstrap-icons';
 import { useSelector } from 'react-redux';
 import RotaryDial from './RotaryDial';
 import { sendCommand } from '../../../sockets/sEmits';
-import { getTableConfig, getCanvasDisplaySize, getCornerCoordinates, formatCoordinate } from '../../../utils/tableConfig';
-import { generateGCode, downloadGCode as downloadGCodeUtil, uploadGCode, CoordinateType } from '../../../utils/gcodeGenerator';
+import { getTableConfig, getCanvasDisplaySize } from '../../../utils/tableConfig';
+import { generateGCode, uploadGCode, CoordinateType } from '../../../utils/gcodeGenerator';
 import { canvasToGcode } from '../../../utils/coordinateTransform';
 import './EtchASketch.scss';
 
@@ -65,7 +65,6 @@ function EtchASketch() {
         maxWidth: maxDisplaySize,
         maxHeight: maxDisplaySize
     });
-    const corners = getCornerCoordinates(config);
 
     // Draw the entire canvas
     const redrawCanvas = useCallback(() => {
@@ -295,29 +294,6 @@ function EtchASketch() {
         setGcodeLines([]);
     }, []);
 
-    // Download G-code
-    const handleDownload = useCallback(() => {
-        if (pathRef.current.length < 2) {
-            window.showToast && window.showToast('No drawing to download');
-            return;
-        }
-
-        // Convert path to canvas coordinates for the generator
-        const canvasPath = pathRef.current.map(p => ({
-            x: p.x,
-            y: 1 - p.y // Flip Y (path uses bottom-up, canvas uses top-down)
-        }));
-
-        const gcode = generateGCode([canvasPath], config, {
-            feedrate: 1000,
-            coordinateType: CoordinateType.CANVAS,
-            canvasSize: { width: 1, height: 1 }
-        });
-
-        downloadGCodeUtil(gcode, `etch-a-sketch-${Date.now()}`);
-        window.showToast && window.showToast('G-code downloaded!');
-    }, [config]);
-
     // Upload/Save G-code
     const handleSave = useCallback(async () => {
         if (pathRef.current.length < 2) {
@@ -378,15 +354,7 @@ function EtchASketch() {
                     >
                         <Gear />
                     </Button>
-                    <Button
-                        variant="outline-light"
-                        size="sm"
-                        onClick={handleDownload}
-                        disabled={pathRef.current.length < 2}
-                        title="Download G-code"
-                    >
-                        <Download />
-                    </Button>
+
                     <Button
                         variant="outline-success"
                         size="sm"
@@ -409,12 +377,6 @@ function EtchASketch() {
 
             {/* Main Drawing Area */}
             <div className="etch-canvas-wrapper">
-                {/* Corner coordinates */}
-                <div className="corner-label top-left">{formatCoordinate(corners.topLeft)}</div>
-                <div className="corner-label top-right">{formatCoordinate(corners.topRight)}</div>
-                <div className="corner-label bottom-left">{formatCoordinate(corners.bottomLeft)}</div>
-                <div className="corner-label bottom-right">{formatCoordinate(corners.bottomRight)}</div>
-
                 <canvas
                     ref={canvasRef}
                     width={INTERNAL_RESOLUTION}

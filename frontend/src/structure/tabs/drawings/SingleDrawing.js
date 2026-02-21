@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
-import { Container, Form, Modal, Row, Col, InputGroup } from 'react-bootstrap';
-import { FileEarmarkX, Play, Plus, PlusSquare, X, Download, ChevronCompactLeft, Pencil, Check, FileCode } from 'react-bootstrap-icons';
+import { Container, Form, Modal, Row, Col, InputGroup, Button } from 'react-bootstrap';
+import { FileEarmarkX, Play, Plus, PlusSquare, X, Download, ChevronCompactLeft, Pencil, Check, FileCode, ChevronLeft, ChevronRight } from 'react-bootstrap-icons';
 import { connect } from 'react-redux';
 
 import { drawingDelete, drawingQueue } from '../../../sockets/sEmits';
@@ -12,20 +12,20 @@ import { createElementDrawing } from '../playlists/elementsFactory';
 import { getImgUrl } from '../../../utils/utils';
 
 import { getQueueCurrent } from '../queue/selector';
-import { getSingleDrawing } from './selector';
+import { getSingleDrawing, getDrawings } from './selector';
 import { getPlaylistsList } from '../playlists/selector';
 import { getSettings } from '../settings/selector';
-import { tabBack } from '../Tabs.slice';
+import { tabBack, showSingleDrawing } from '../Tabs.slice';
 import { deleteDrawing, setRefreshDrawing } from './Drawings.slice';
 import { addToPlaylist } from '../playlists/Playlists.slice';
 import Image from '../../../components/Image';
 import GCodePreview from '../../../components/GCodePreview';
 
-
 const mapStateToProps = (state) => {
     return {
         currentElement: getQueueCurrent(state),
         drawing: getSingleDrawing(state),
+        allDrawings: getDrawings(state),
         playlists: getPlaylistsList(state),
         settings: getSettings(state)
     }
@@ -34,6 +34,7 @@ const mapStateToProps = (state) => {
 const mapDispatchToProps = (dispatch) => {
     return {
         handleTabBack: () => dispatch(tabBack()),
+        showSingleDrawing: (id) => dispatch(showSingleDrawing(id)),
         refreshDrawings: () => dispatch(setRefreshDrawing()),
         deleteDrawing: (id) => dispatch(deleteDrawing(id)),
         addToPlaylist: (bundle) => dispatch(addToPlaylist(bundle))
@@ -116,6 +117,24 @@ class SingleDrawing extends Component {
         }
     }
 
+    handleNavigate = (direction) => {
+        const { drawing, allDrawings, showSingleDrawing } = this.props;
+        if (!allDrawings || allDrawings.length === 0 || !drawing) return;
+
+        const currentIndex = allDrawings.findIndex(d => d.id === drawing.id);
+        if (currentIndex === -1) return;
+
+        let nextIndex;
+        if (direction === 'prev') {
+            nextIndex = currentIndex > 0 ? currentIndex - 1 : allDrawings.length - 1; // Wrap around
+        } else {
+            nextIndex = currentIndex < allDrawings.length - 1 ? currentIndex + 1 : 0; // Wrap around
+        }
+
+        const nextDrawingId = allDrawings[nextIndex].id;
+        showSingleDrawing(nextDrawingId);
+    }
+
     render() {
         if (this.props.drawing.id !== undefined) {
             let startDrawingLabel = "Queue drawing";
@@ -124,24 +143,44 @@ class SingleDrawing extends Component {
             }
             // TODO add possibility to edit the gcode file and render again the drawing
             return <Container>
-                <div className="mb-3 w-100 center">
-                    {this.state.isRenaming ? (
-                        <div className="d-inline-flex w-50 align-items-center justify-content-center">
-                            <Form.Control
-                                type="text"
-                                value={this.state.renameValue}
-                                onChange={(e) => this.setState({ renameValue: e.target.value })}
-                                style={{ fontSize: '1.5rem', textAlign: 'center' }}
-                            />
-                            <IconButton className="btn-success ml-2" icon={Check} onClick={this.handleRenameSave} />
-                            <IconButton className="btn-danger ml-2" icon={X} onClick={this.handleRenameCancel} />
-                        </div>
-                    ) : (
-                        <h1 className="d-inline-flex align-items-center ml-3">
-                            {this.props.drawing.filename.replace(/\.gcode$/i, '')}
-                            <IconButton className="btn-link text-white ml-3 p-0" style={{ fontSize: '1rem' }} icon={Pencil} onClick={this.handleRenameStart} />
-                        </h1>
-                    )}
+                <div className="mb-3 w-100 d-flex align-items-center justify-content-center">
+                    <Button
+                        variant="link"
+                        className="text-white p-2 border-0"
+                        onClick={() => this.handleNavigate('prev')}
+                        title="Previous Drawing"
+                    >
+                        <ChevronLeft size={24} />
+                    </Button>
+
+                    <div className="mx-3 text-center" style={{ flexGrow: 1, maxWidth: '600px' }}>
+                        {this.state.isRenaming ? (
+                            <div className="d-inline-flex w-100 align-items-center justify-content-center">
+                                <Form.Control
+                                    type="text"
+                                    value={this.state.renameValue}
+                                    onChange={(e) => this.setState({ renameValue: e.target.value })}
+                                    style={{ fontSize: '1.5rem', textAlign: 'center' }}
+                                />
+                                <IconButton className="btn-success ml-2" icon={Check} onClick={this.handleRenameSave} />
+                                <IconButton className="btn-danger ml-2" icon={X} onClick={this.handleRenameCancel} />
+                            </div>
+                        ) : (
+                            <h1 className="d-inline-flex align-items-center m-0">
+                                {this.props.drawing.filename.replace(/\.gcode$/i, '')}
+                                <IconButton className="btn-link text-white ml-3 p-0" style={{ fontSize: '1rem' }} icon={Pencil} onClick={this.handleRenameStart} />
+                            </h1>
+                        )}
+                    </div>
+
+                    <Button
+                        variant="link"
+                        className="text-white p-2 border-0"
+                        onClick={() => this.handleNavigate('next')}
+                        title="Next Drawing"
+                    >
+                        <ChevronRight size={24} />
+                    </Button>
                 </div>
                 <Row className="center pb-3 justify-content-center">
                     <Col xs="auto" className="center mx-1 mb-2">

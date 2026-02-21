@@ -1,10 +1,10 @@
-import React, { Component } from 'react';
-import { Button, Card, Form, ButtonGroup } from 'react-bootstrap';
-import { Trash, Upload, Download, Pencil, Slash, Circle, Square, Triangle } from 'react-bootstrap-icons';
+import React, { Component, createRef } from 'react';
+import { Button, Card, Form, ButtonGroup, InputGroup, Collapse } from 'react-bootstrap';
+import { Trash, Upload, Pencil, Slash, Circle, Square, Triangle, Gear } from 'react-bootstrap-icons';
 import { connect } from 'react-redux';
 import { getSettings } from '../settings/selector';
-import { getTableConfig, getCanvasDisplaySize, getCornerCoordinates, formatCoordinate } from '../../../utils/tableConfig';
-import { generateGCode, uploadGCode as uploadGCodeUtil, downloadGCode as downloadGCodeUtil, CoordinateType } from '../../../utils/gcodeGenerator';
+import { getTableConfig, getCanvasDisplaySize } from '../../../utils/tableConfig';
+import { generateGCode, uploadGCode as uploadGCodeUtil, CoordinateType } from '../../../utils/gcodeGenerator';
 import './Kaleidoscope.scss';
 
 const mapStateToProps = (state) => {
@@ -30,7 +30,8 @@ class Kaleidoscope extends Component {
             showGuides: true,
             drawMode: 'freehand', // 'freehand', 'line', 'circle', 'square', 'triangle'
             shapeStart: null, // { x, y } for shape start point
-            shapePreview: null // Preview points while dragging
+            shapePreview: null, // Preview points while dragging
+            showSettings: false
         };
         this.internalSize = 1000;
     }
@@ -41,9 +42,12 @@ class Kaleidoscope extends Component {
         this.handleResize = () => {
             const viewportHeight = window.innerHeight;
             const viewportWidth = window.innerWidth;
-            const availableHeight = viewportHeight - 350;
-            const availableWidth = viewportWidth - 350;
-            const maxSize = Math.min(availableWidth, availableHeight, 800);
+            const headerHeight = 80;
+            const padding = 40;
+            const extraSpace = this.state.showSettings ? 280 : 100; // Leave more room for inline settings
+            const availableHeight = viewportHeight - headerHeight - padding - extraSpace;
+            const availableWidth = viewportWidth - 40;
+            const maxSize = Math.min(availableWidth, availableHeight, 900);
             this.setState({ maxDisplaySize: Math.max(300, maxSize) });
         };
         window.addEventListener('resize', this.handleResize);
@@ -422,173 +426,86 @@ class Kaleidoscope extends Component {
         }
     }
 
-    handleDownload = () => {
-        const gcode = this.handleGenerateGCode();
-        downloadGCodeUtil(gcode, this.state.drawingName || `kaleidoscope_${Date.now()}`);
-    }
+
 
     render() {
-        const { maxDisplaySize, segments, mirrorMode, showGuides } = this.state;
+        const { maxDisplaySize, segments, mirrorMode, showGuides, showSettings } = this.state;
         const config = getTableConfig(this.props.settings);
         const displaySize = getCanvasDisplaySize(config, {
             maxWidth: maxDisplaySize,
             maxHeight: maxDisplaySize
         });
-        const corners = getCornerCoordinates(config);
-
 
         return (
             <div className="kaleidoscope-page">
-                <Card className="kaleidoscope-settings bg-dark text-white">
-                    <Card.Header>
-                        <h5 className="mb-0">Kaleidoscope</h5>
-                    </Card.Header>
-                    <Card.Body>
-                        <Form.Group className="mb-3">
-                            <Form.Label className="small">Draw Tool</Form.Label>
-                            <ButtonGroup className="w-100">
-                                <Button
-                                    variant={this.state.drawMode === 'freehand' ? 'info' : 'outline-secondary'}
-                                    size="sm"
-                                    onClick={() => this.setState({ drawMode: 'freehand' })}
-                                    title="Freehand"
-                                >
-                                    <Pencil />
-                                </Button>
-                                <Button
-                                    variant={this.state.drawMode === 'line' ? 'info' : 'outline-secondary'}
-                                    size="sm"
-                                    onClick={() => this.setState({ drawMode: 'line' })}
-                                    title="Line"
-                                >
-                                    <Slash />
-                                </Button>
-                                <Button
-                                    variant={this.state.drawMode === 'circle' ? 'info' : 'outline-secondary'}
-                                    size="sm"
-                                    onClick={() => this.setState({ drawMode: 'circle' })}
-                                    title="Circle"
-                                >
-                                    <Circle />
-                                </Button>
-                                <Button
-                                    variant={this.state.drawMode === 'square' ? 'info' : 'outline-secondary'}
-                                    size="sm"
-                                    onClick={() => this.setState({ drawMode: 'square' })}
-                                    title="Square"
-                                >
-                                    <Square />
-                                </Button>
-                                <Button
-                                    variant={this.state.drawMode === 'triangle' ? 'info' : 'outline-secondary'}
-                                    size="sm"
-                                    onClick={() => this.setState({ drawMode: 'triangle' })}
-                                    title="Triangle"
-                                >
-                                    <Triangle />
-                                </Button>
-                            </ButtonGroup>
-                        </Form.Group>
-
-                        <Form.Group className="mb-3">
-                            <Form.Label className="small">Segments: {segments}</Form.Label>
-                            <Form.Control
-                                type="range"
-                                min={2}
-                                max={24}
-                                value={segments}
-                                onChange={(e) => this.setState({ segments: parseInt(e.target.value) })}
-                            />
-                        </Form.Group>
-
-                        <Form.Group className="mb-3">
-                            <Form.Label className="small">Mirror Mode</Form.Label>
-                            <ButtonGroup className="w-100">
-                                <Button
-                                    variant={mirrorMode === 'radial' ? 'info' : 'outline-secondary'}
-                                    size="sm"
-                                    onClick={() => this.setState({ mirrorMode: 'radial' })}
-                                >
-                                    Radial
-                                </Button>
-                                <Button
-                                    variant={mirrorMode === 'bilateral' ? 'info' : 'outline-secondary'}
-                                    size="sm"
-                                    onClick={() => this.setState({ mirrorMode: 'bilateral' })}
-                                >
-                                    Bilateral
-                                </Button>
-                            </ButtonGroup>
-                            <small className="text-muted d-block mt-1">
-                                {mirrorMode === 'radial'
-                                    ? 'Rotates drawing around center'
-                                    : 'Mirrors each segment like a real kaleidoscope'}
-                            </small>
-                        </Form.Group>
-
-                        <Form.Group className="mb-3">
-                            <Form.Check
-                                type="checkbox"
-                                label="Show Guides"
-                                checked={showGuides}
-                                onChange={(e) => this.setState({ showGuides: e.target.checked })}
-                            />
-                        </Form.Group>
-
-                        <hr className="border-secondary" />
-
-                        <Form.Group className="mb-2">
-                            <Form.Label className="small">Drawing Name</Form.Label>
-                            <Form.Control
-                                type="text"
-                                placeholder="my_kaleidoscope"
-                                value={this.state.drawingName}
-                                onChange={(e) => this.setState({ drawingName: e.target.value })}
-                                className="bg-secondary text-white border-0"
+                {/* Header Controls */}
+                <div className="kaleidoscope-header">
+                    <h4 className="mb-0">Kaleidoscope</h4>
+                    <div className="kaleidoscope-controls">
+                        <ButtonGroup className="mr-2 tool-group">
+                            <Button
+                                variant={this.state.drawMode === 'freehand' ? 'info' : 'outline-secondary'}
                                 size="sm"
-                            />
-                        </Form.Group>
+                                onClick={() => this.setState({ drawMode: 'freehand' })}
+                                title="Freehand"
+                            ><Pencil /></Button>
+                            <Button
+                                variant={this.state.drawMode === 'line' ? 'info' : 'outline-secondary'}
+                                size="sm"
+                                onClick={() => this.setState({ drawMode: 'line' })}
+                                title="Line"
+                            ><Slash /></Button>
+                            <Button
+                                variant={this.state.drawMode === 'circle' ? 'info' : 'outline-secondary'}
+                                size="sm"
+                                onClick={() => this.setState({ drawMode: 'circle' })}
+                                title="Circle"
+                            ><Circle /></Button>
+                            <Button
+                                variant={this.state.drawMode === 'square' ? 'info' : 'outline-secondary'}
+                                size="sm"
+                                onClick={() => this.setState({ drawMode: 'square' })}
+                                title="Square"
+                            ><Square /></Button>
+                            <Button
+                                variant={this.state.drawMode === 'triangle' ? 'info' : 'outline-secondary'}
+                                size="sm"
+                                onClick={() => this.setState({ drawMode: 'triangle' })}
+                                title="Triangle"
+                            ><Triangle /></Button>
+                        </ButtonGroup>
 
+                        <Button variant={this.state.showSettings ? "primary" : "outline-secondary"} size="sm" onClick={() => {
+                            this.setState(prev => ({ showSettings: !prev.showSettings }), this.handleResize);
+                        }} title="Toggle Settings">
+                            <Gear />
+                        </Button>
 
+                        <Button variant="outline-success" size="sm" onClick={this.sendToTable} disabled={this.state.paths.length === 0} title="Save to Drawings">
+                            <Upload />
+                        </Button>
+                        <Button variant="outline-danger" size="sm" onClick={this.clearCanvas} title="Clear canvas">
+                            <Trash />
+                        </Button>
+                    </div>
+                </div>
 
-                        <div className="d-grid gap-2">
-                            <Button variant="danger" onClick={this.clearCanvas}>
-                                <Trash className="me-2" /> Clear
-                            </Button>
-                            <Button variant="info" onClick={this.handleDownload}>
-                                <Download className="me-2" /> Download
-                            </Button>
-                            <Button variant="success" onClick={this.sendToTable}>
-                                <Upload className="me-2" /> Send to Table
-                            </Button>
-                        </div>
-                    </Card.Body>
-                </Card>
-
-                <div className="kaleidoscope-canvas-area">
+                {/* Main Drawing Area */}
+                <div className="kaleidoscope-canvas-wrapper">
                     <div className="canvas-container" style={{
                         width: Math.min(displaySize.width, displaySize.height),
                         height: Math.min(displaySize.width, displaySize.height),
-                        position: 'relative'
+                        position: 'relative',
+                        margin: '0 auto'
                     }}>
-                        {/* Corner coordinates */}
-                        <div className="corner-label top-left">{formatCoordinate(corners.topLeft)}</div>
-                        <div className="corner-label top-right">{formatCoordinate(corners.topRight)}</div>
-                        <div className="corner-label bottom-left">{formatCoordinate(corners.bottomLeft)}</div>
-                        <div className="corner-label bottom-right">{formatCoordinate(corners.bottomRight)}</div>
-
                         <canvas
                             ref={this.canvasRef}
                             width={this.internalSize}
                             height={this.internalSize}
+                            className="kaleidoscope-canvas"
                             style={{
                                 width: '100%',
-                                height: '100%',
-                                borderRadius: '12px',
-                                border: '3px solid #20c997',
-                                boxShadow: '0 0 40px rgba(32, 201, 151, 0.3)',
-                                cursor: 'crosshair',
-                                touchAction: 'none'
+                                height: '100%'
                             }}
                             onMouseDown={this.handleStart}
                             onMouseMove={this.handleMove}
@@ -598,9 +515,86 @@ class Kaleidoscope extends Component {
                             onTouchEnd={this.handleEnd}
                         />
                     </div>
-                    <p className="text-muted text-center mt-2 small">
+
+                    <p className="text-muted text-center mt-2 small instruction-text">
                         Draw in any segment - it will mirror automatically!
                     </p>
+
+                    {/* Name Input Row */}
+                    <div className="w-100 d-flex justify-content-center mt-3" style={{ maxWidth: '400px', margin: '0 auto' }}>
+                        <InputGroup size="sm">
+                            <InputGroup.Prepend>
+                                <InputGroup.Text className="bg-dark text-white border-secondary">Name</InputGroup.Text>
+                            </InputGroup.Prepend>
+                            <Form.Control
+                                type="text"
+                                placeholder={`kaleidoscope_${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                                value={this.state.drawingName}
+                                onChange={(e) => this.setState({ drawingName: e.target.value })}
+                                className="bg-dark text-white border-secondary"
+                            />
+                        </InputGroup>
+                    </div>
+                    {/* Settings Panel Inline */}
+                    <Collapse in={showSettings}>
+                        <div className="kaleidoscope-inline-settings mt-3 p-3 bg-dark rounded border border-secondary text-left w-100" style={{ maxWidth: '600px', margin: '0 auto' }}>
+                            <h6 className="text-info border-bottom border-secondary pb-2 mb-3">Settings</h6>
+                            <div className="row">
+                                <div className="col-md-6 mb-3">
+                                    <Form.Group>
+                                        <Form.Label className="d-flex justify-content-between mb-1">
+                                            <span className="small text-muted">Segments</span>
+                                            <span className="text-primary font-weight-bold small">{segments}</span>
+                                        </Form.Label>
+                                        <Form.Control
+                                            type="range"
+                                            min={2}
+                                            max={24}
+                                            value={segments}
+                                            onChange={(e) => this.setState({ segments: parseInt(e.target.value) })}
+                                            className="custom-range"
+                                        />
+                                    </Form.Group>
+
+                                    <Form.Group className="mb-0 mt-3">
+                                        <Form.Check
+                                            type="switch"
+                                            id="show-guides-switch-k"
+                                            label="Show Guides"
+                                            checked={showGuides}
+                                            onChange={(e) => this.setState({ showGuides: e.target.checked })}
+                                            className="custom-switch small"
+                                        />
+                                    </Form.Group>
+                                </div>
+
+                                <div className="col-md-6 mb-3">
+                                    <Form.Group>
+                                        <Form.Label className="small text-muted mb-1">Mirror Mode</Form.Label>
+                                        <ButtonGroup className="w-100">
+                                            <Button
+                                                variant={mirrorMode === 'radial' ? 'info' : 'outline-secondary'}
+                                                size="sm"
+                                                onClick={() => this.setState({ mirrorMode: 'radial' })}
+                                            >
+                                                Radial
+                                            </Button>
+                                            <Button
+                                                variant={mirrorMode === 'bilateral' ? 'info' : 'outline-secondary'}
+                                                size="sm"
+                                                onClick={() => this.setState({ mirrorMode: 'bilateral' })}
+                                            >
+                                                Bilateral
+                                            </Button>
+                                        </ButtonGroup>
+                                        <small className="text-muted d-block mt-1" style={{ fontSize: '11px' }}>
+                                            {mirrorMode === 'radial' ? 'Rotates around center' : 'Mirrors like a real kaleidoscope'}
+                                        </small>
+                                    </Form.Group>
+                                </div>
+                            </div>
+                        </div>
+                    </Collapse>
                 </div>
             </div>
         );

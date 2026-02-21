@@ -1,10 +1,10 @@
 import React, { Component } from 'react';
-import { Button, Card, Form, Accordion } from 'react-bootstrap';
-import { CameraVideo, Camera, Download, Upload, Image as ImageIcon, ExclamationTriangle, ZoomIn, ZoomOut, XLg } from 'react-bootstrap-icons';
+import { Button, Card, Form, Accordion, Collapse, InputGroup } from 'react-bootstrap';
+import { CameraVideo, Camera, Upload, Image as ImageIcon, ExclamationTriangle, ZoomIn, ZoomOut, XLg, Gear } from 'react-bootstrap-icons';
 import { connect } from 'react-redux';
 import { getSettings } from '../settings/selector';
-import { getTableConfig, getCanvasDisplaySize, getCornerCoordinates, formatCoordinate } from '../../../utils/tableConfig';
-import { generateGCode, uploadGCode, downloadGCode, CoordinateType } from '../../../utils/gcodeGenerator';
+import { getTableConfig, getCanvasDisplaySize } from '../../../utils/tableConfig';
+import { generateGCode, uploadGCode, CoordinateType } from '../../../utils/gcodeGenerator';
 import { SelfieSegmentation } from '@mediapipe/selfie_segmentation';
 
 import './Scanner.scss';
@@ -28,6 +28,7 @@ class Scanner extends Component {
             hasCamera: false,
             isStreaming: false,
             showVideo: false,
+            isIOS: false, // Detect iPad/iPhone
             zoom: 1.0,
 
             generatedPoints: [], // Normalized -1..1
@@ -42,9 +43,9 @@ class Scanner extends Component {
             contrast: 1.0,       // Optional post-process
             invert: false,       // Invert path order? Or maybe invert selection logic.
             drawingName: '',     // Name for the generated file/job
-            drawingName: '',     // Name for the generated file/job
             focusBlur: false,    // AI Background Removal Mode
-            isProcessing: false  // Loading state for AI
+            isProcessing: false, // Loading state for AI
+            showSettings: false
         };
 
         // This is the processing canvas size, matches 'resolution' state usually, 
@@ -53,7 +54,16 @@ class Scanner extends Component {
     }
 
     componentDidMount() {
-        this.startCamera();
+        // Detect iOS or iPadOS (since iPadOS 13 it poses as Mac)
+        // macOS Chrome sometimes incorrectly reports maxTouchPoints > 0, so we use pointer: coarse to reliably detect touch devices (iPads).
+        const isIOSMobile = (/iPad|iPhone|iPod/.test(navigator.userAgent)) ||
+            (navigator.userAgent.includes("Mac") && window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+
+        this.setState({ isIOS: isIOSMobile });
+
+        if (!isIOSMobile) {
+            this.startCamera();
+        }
 
         // Initialize Selfie Segmentation
         const segmenter = new SelfieSegmentation({
@@ -69,10 +79,12 @@ class Scanner extends Component {
         this.handleResize = () => {
             const viewportHeight = window.innerHeight;
             const viewportWidth = window.innerWidth;
-            const availableHeight = viewportHeight - 200;
-            const availableWidth = viewportWidth - 400;
-
-            const maxSize = Math.min(availableWidth, availableHeight, 800);
+            const headerHeight = 80;
+            const padding = 40;
+            const extraSpace = this.state.showSettings ? 380 : 100; // Leave more room for inline settings
+            const availableHeight = viewportHeight - headerHeight - padding - extraSpace;
+            const availableWidth = viewportWidth - 40;
+            const maxSize = Math.min(availableWidth, availableHeight, 900);
             this.setState({ maxDisplaySize: Math.max(300, maxSize) });
         };
         window.addEventListener('resize', this.handleResize);
@@ -583,153 +595,165 @@ class Scanner extends Component {
         }
     }
 
-    downloadGCode = () => {
-        const gcode = this.handleGenerateGCode();
-        if (gcode) {
-            const name = this.state.drawingName.trim() || `scan_${Date.now()}`;
-            downloadGCode(gcode, name);
-        }
-    }
+
 
     render() {
-        const { maxDisplaySize, error, isStreaming, showVideo, generatedPoints, zoom, edgeThreshold, blurRadius, resolution } = this.state;
+        const { maxDisplaySize, error, isStreaming, showVideo, generatedPoints, zoom, edgeThreshold, blurRadius, resolution, isIOS } = this.state;
         const config = getTableConfig(this.props.settings);
         const displaySize = getCanvasDisplaySize(config, { maxWidth: maxDisplaySize, maxHeight: maxDisplaySize });
-        const corners = getCornerCoordinates(config);
 
         return (
             <div className={`scanner-page ${showVideo ? 'camera-mode' : 'canvas-mode'}`}>
-                <Card className="scanner-settings bg-dark text-white">
-                    <Card.Header><h5 className="mb-0">👁️ Single-Line Scan</h5></Card.Header>
-                    <Card.Body>
-                        <p className="small text-muted mb-3">Converts outlines and details into a single continuous path.</p>
-
-                        {error && <div className="alert alert-danger small p-2 mb-3">{error}</div>}
-
-                        <div className="d-grid gap-2 mb-4">
-                            {!isStreaming && !error ? (
-                                <Button variant="outline-warning" onClick={this.startCamera}><CameraVideo className="mr-2" /> Activate Camera</Button>
-                            ) : (
-                                <Button variant={showVideo ? "outline-secondary" : "primary"} onClick={() => this.setState({ showVideo: !showVideo })} disabled={!isStreaming}>
-                                    {showVideo ? <><XLg className="mr-2" /> Cancel</> : <><Camera className="mr-2" /> Open Camera</>}
+                {/* Header Controls */}
+                <div className="scanner-header">
+                    <h4 className="mb-0">👁️ Scanner</h4>
+                    <div className="scanner-controls">
+                        {!isIOS && (
+                            !isStreaming && !error ? (
+                                <Button variant="outline-warning" size="sm" onClick={this.startCamera} title="Activate Camera">
+                                    <CameraVideo /> Camera
                                 </Button>
-                            )}
-                            <input type="file" ref={this.fileInputRef} style={{ display: 'none' }} accept="image/*" onChange={this.handleFileChange} />
-                            <Button variant="outline-light" onClick={() => this.fileInputRef.current.click()}><ImageIcon className="mr-2" /> Upload Photo</Button>
-                        </div>
-
-                        {/* New Controls */}
-                        {!showVideo && (
-                            <Accordion defaultActiveKey="0" className="mb-3">
-                                <Card className="bg-secondary border-0">
-                                    <Card.Header className="p-0 border-0">
-                                        <Accordion.Toggle as={Button} variant="outline-light" size="sm" eventKey="0" className="w-100 mb-2">
-                                            Sketch Settings
-                                        </Accordion.Toggle>
-                                    </Card.Header>
-                                    <Accordion.Collapse eventKey="0">
-                                        <Card.Body className="p-2 pt-0">
-                                            <Form.Group className="mb-2">
-                                                <Form.Label className="small">Edge Threshold: {edgeThreshold}</Form.Label>
-                                                <Form.Control type="range" min="5" max="100" value={edgeThreshold}
-                                                    onChange={e => this.setState({ edgeThreshold: parseInt(e.target.value) })} size="sm" />
-                                                <Form.Text className="text-white-50 small">Lower = More detail/noise.</Form.Text>
-                                            </Form.Group>
-
-                                            <Form.Group className="mb-2">
-                                                <Form.Label className="small">Smoothing (Blur): {blurRadius}</Form.Label>
-                                                <Form.Control type="range" min="0" max="5" value={blurRadius}
-                                                    onChange={e => this.setState({ blurRadius: parseInt(e.target.value) })} size="sm" />
-                                            </Form.Group>
-
-                                            <Form.Group className="mb-2">
-                                                <Form.Label className="small">Resolution: {resolution}px</Form.Label>
-                                                <Form.Control as="select" size="sm" value={resolution}
-                                                    onChange={e => this.setState({ resolution: parseInt(e.target.value) })}>
-                                                    <option value="150">Low (Fast)</option>
-                                                    <option value="200">Medium</option>
-                                                    <option value="300">High</option>
-                                                    <option value="400">Ultra (Slow)</option>
-                                                </Form.Control>
-                                            </Form.Group>
-                                        </Card.Body>
-                                    </Accordion.Collapse>
-                                </Card>
-                            </Accordion>
+                            ) : (
+                                <Button variant={showVideo ? "outline-secondary" : "outline-primary"} size="sm" onClick={() => this.setState({ showVideo: !showVideo })} disabled={!isStreaming} title={showVideo ? "Close Camera" : "Open Camera"}>
+                                    {showVideo ? <><XLg /> Close</> : <><Camera /> Open</>}
+                                </Button>
+                            )
                         )}
+                        <input type="file" ref={this.fileInputRef} style={{ display: 'none' }} accept="image/*" onChange={this.handleFileChange} />
+                        <Button variant="outline-light" size="sm" onClick={() => this.fileInputRef.current.click()} title="Upload Photo">
+                            <ImageIcon /> Upload
+                        </Button>
 
-                        {showVideo && (
-                            <Card className="bg-secondary border-0 mb-3">
-                                <Card.Body className="p-3">
-                                    <div className="d-flex justify-content-between align-items-center mb-2">
-                                        <Form.Label className="small mb-0">Digital Zoom: {zoom.toFixed(1)}x</Form.Label>
-                                        <Form.Check
-                                            type="switch"
-                                            id="focus-blur-switch"
-                                            label="🎯 Focus Mode"
-                                            checked={this.state.focusBlur}
-                                            onChange={e => this.setState({ focusBlur: e.target.checked })}
-                                            className="small text-warning"
-                                        />
-                                    </div>
-                                    <Form.Control type="range" min="1.0" max="10.0" step="0.1" value={zoom}
-                                        onChange={e => this.setState({ zoom: parseFloat(e.target.value) })} className="custom-range" />
-                                </Card.Body>
-                            </Card>
-                        )}
+                        <Button variant={this.state.showSettings ? "primary" : "outline-secondary"} size="sm" onClick={() => {
+                            this.setState(prev => ({ showSettings: !prev.showSettings }), this.handleResize);
+                        }} title="Toggle Settings">
+                            <Gear />
+                        </Button>
 
-                        {showVideo ? (
-                            <div className="d-grid mt-auto pt-3 border-top border-secondary">
-                                <Button variant="danger" size="lg" onClick={this.captureImage}><Camera className="mr-2" /> SNAP PHOTO</Button>
-                            </div>
-                        ) : (
-                            <div className="mt-auto border-top border-secondary pt-3">
-                                <Form.Group className="mb-2">
-                                    <Form.Label className="small">Drawing Name</Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        size="sm"
-                                        placeholder={`scan_${Date.now()}`}
-                                        value={this.state.drawingName}
-                                        onChange={e => this.setState({ drawingName: e.target.value })}
-                                        className="bg-secondary text-white border-0"
-                                    />
-                                </Form.Group>
-                                <div className="d-grid gap-2">
-                                    <Button variant="success" onClick={this.sendToTable} disabled={generatedPoints.length === 0}><Upload className="mr-2" /> Send to Table</Button>
-                                    <Button variant="outline-info" onClick={this.downloadGCode} disabled={generatedPoints.length === 0}><Download className="mr-2" /> Download G-Code</Button>
-                                </div>
-                            </div>
-                        )}
-                    </Card.Body>
-                </Card>
 
-                <div className="scanner-canvas-area">
-                    {showVideo ? (
-                        <div className="camera-fullscreen-container">
-                            <div className="video-crop-window">
-                                <video ref={this.videoRef} autoPlay playsInline muted style={{ transform: `scale(${zoom}) scaleX(-1)`, transformOrigin: 'center center' }} />
+                        <Button variant="outline-success" size="sm" onClick={this.sendToTable} disabled={generatedPoints.length === 0} title="Save to Drawings">
+                            <Upload />
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Main Viewing Area */}
+                <div className="scanner-canvas-wrapper">
+                    {error && !isIOS && <div className="alert alert-danger small p-2 mb-3 mt-3 w-100 text-center">{error}</div>}
+
+                    {showVideo && !isIOS && (
+                        <div className="camera-fullscreen-container" style={{ width: Math.min(displaySize.width, displaySize.height), height: Math.min(displaySize.width, displaySize.height) }}>
+                            <div className="video-crop-window w-100 h-100">
+                                <video ref={this.videoRef} autoPlay playsInline muted style={{ transform: `scale(${zoom}) scaleX(-1)`, transformOrigin: 'center center', width: '100%', height: '100%', objectFit: 'cover' }} />
                                 <div className="capture-guide-overlay"><div className="guide-box"></div></div>
                             </div>
+                            <Button variant="danger" size="lg" className="mt-4" onClick={this.captureImage} style={{ zIndex: 60 }}><Camera className="mr-2" /> SNAP PHOTO</Button>
                         </div>
-                    ) : (
-                        <div className="canvas-container" style={{ width: Math.min(displaySize.width, displaySize.height), height: Math.min(displaySize.width, displaySize.height) }}>
+                    )}
+
+                    {!showVideo && (
+                        <div className="canvas-container" style={{ width: Math.min(displaySize.width, displaySize.height), height: Math.min(displaySize.width, displaySize.height), position: 'relative', margin: '0 auto' }}>
                             {/* Loading Overlay */}
                             {this.state.isProcessing && (
-                                <div className="position-absolute w-100 h-100 d-flex flex-column justify-content-center align-items-center" style={{ zIndex: 50, background: 'rgba(0,0,0,0.7)', color: 'white' }}>
+                                <div className="position-absolute w-100 h-100 d-flex flex-column justify-content-center align-items-center" style={{ zIndex: 50, background: 'rgba(0,0,0,0.7)', color: 'white', borderRadius: '12px' }}>
                                     <div className="spinner-border text-info mb-2" role="status"></div>
                                     <div>Processing Image...</div>
                                     {this.state.focusBlur && <small className="text-white-50 mt-1">Applying AI Mask</small>}
                                 </div>
                             )}
-                            <div className="corner-label top-left">{formatCoordinate(corners.topLeft)}</div>
-                            <div className="corner-label top-right">{formatCoordinate(corners.topRight)}</div>
-                            <div className="corner-label bottom-left">{formatCoordinate(corners.bottomLeft)}</div>
-                            <div className="corner-label bottom-right">{formatCoordinate(corners.bottomRight)}</div>
                             <canvas ref={this.canvasRef} width={this.internalSize} height={this.internalSize} style={{ width: '100%', height: '100%', borderRadius: '12px', border: '3px solid #20c997', boxShadow: '0 0 30px rgba(32, 201, 151, 0.15)', background: '#000' }} />
-                            {generatedPoints.length === 0 && <div className="canvas-placeholder text-center text-muted"><ImageIcon size={48} className="mb-3" /><p>No scan generated.</p></div>}
+                            {generatedPoints.length === 0 && <div className="canvas-placeholder text-center text-muted"><ImageIcon size={48} className="mb-3" /><p>Open camera or upload photo to begin.</p></div>}
                         </div>
                     )}
+
+                    <p className="text-muted text-center mt-2 small instruction-text">
+                        {showVideo ? "Ensure face/object is centered, then snap." : "Adjust Sketch Settings to refine the continuous path drawing."}
+                    </p>
+
+                    {/* Name Input */}
+                    {!showVideo && (
+                        <div className="w-100 d-flex justify-content-center mt-3" style={{ maxWidth: '400px', margin: '0 auto' }}>
+                            <InputGroup size="sm">
+                                <InputGroup.Prepend>
+                                    <InputGroup.Text className="bg-dark text-white border-secondary">Name</InputGroup.Text>
+                                </InputGroup.Prepend>
+                                <Form.Control
+                                    type="text"
+                                    placeholder={`scan_${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                                    value={this.state.drawingName}
+                                    onChange={(e) => this.setState({ drawingName: e.target.value })}
+                                    className="bg-dark text-white border-secondary"
+                                />
+                            </InputGroup>
+                        </div>
+                    )}
+
+                    {/* Inline Settings Panel */}
+                    <Collapse in={this.state.showSettings}>
+                        <div className="scanner-inline-settings mt-3 p-3 bg-dark rounded border border-secondary text-left w-100" style={{ maxWidth: '800px', margin: '0 auto' }}>
+                            <div className="d-flex justify-content-between align-items-center border-bottom border-secondary pb-2 mb-3">
+                                <h6 className="text-info m-0">Settings</h6>
+                            </div>
+
+                            <div className="row">
+                                <div className="col-md-6 mb-3">
+                                    <Form.Group className="mb-3">
+                                        <Form.Label className="d-flex justify-content-between mb-1">
+                                            <span className="small text-muted">Edge Threshold</span>
+                                            <span className="text-primary font-weight-bold small">{edgeThreshold}</span>
+                                        </Form.Label>
+                                        <Form.Control type="range" min="5" max="100" value={edgeThreshold}
+                                            onChange={e => this.setState({ edgeThreshold: parseInt(e.target.value) })} className="custom-range" />
+                                        <Form.Text className="text-muted small" style={{ fontSize: '10px' }}>Lower = More detail/noise.</Form.Text>
+                                    </Form.Group>
+
+                                    <Form.Group className="mb-3">
+                                        <Form.Label className="d-flex justify-content-between mb-1">
+                                            <span className="small text-muted">Smoothing (Blur)</span>
+                                            <span className="text-primary font-weight-bold small">{blurRadius}</span>
+                                        </Form.Label>
+                                        <Form.Control type="range" min="0" max="5" value={blurRadius}
+                                            onChange={e => this.setState({ blurRadius: parseInt(e.target.value) })} className="custom-range" />
+                                    </Form.Group>
+                                </div>
+
+                                <div className="col-md-6 mb-3">
+                                    <Form.Group className="mb-3">
+                                        <Form.Label className="small text-muted mb-1 d-block">Resolution</Form.Label>
+                                        <Form.Control as="select" size="sm" value={resolution} className="bg-secondary text-white border-secondary"
+                                            onChange={e => this.setState({ resolution: parseInt(e.target.value) })}>
+                                            <option value="150">Low (Fast - 150px)</option>
+                                            <option value="200">Medium (200px)</option>
+                                            <option value="300">High (300px)</option>
+                                            <option value="400">Ultra (Slow - 400px)</option>
+                                        </Form.Control>
+                                    </Form.Group>
+
+                                    {showVideo && (
+                                        <>
+                                            <Form.Group className="mb-3">
+                                                <Form.Label className="d-flex justify-content-between mb-1">
+                                                    <span className="small text-muted">Digital Zoom</span>
+                                                    <span className="text-primary font-weight-bold small">{zoom.toFixed(1)}x</span>
+                                                </Form.Label>
+                                                <Form.Control type="range" min="1.0" max="10.0" step="0.1" value={zoom}
+                                                    onChange={e => this.setState({ zoom: parseFloat(e.target.value) })} className="custom-range" />
+                                            </Form.Group>
+
+                                            <Form.Check
+                                                type="switch"
+                                                id="focus-blur-switch"
+                                                label={<span className="small text-warning">🎯 Focus Mode</span>}
+                                                checked={this.state.focusBlur}
+                                                onChange={e => this.setState({ focusBlur: e.target.checked })}
+                                                className="custom-switch"
+                                            />
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </Collapse>
                 </div>
             </div>
         );

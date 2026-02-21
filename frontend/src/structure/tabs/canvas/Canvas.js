@@ -1,12 +1,12 @@
 import React, { Component } from 'react';
-import { Button, Form, InputGroup, ButtonGroup, Row, Col } from 'react-bootstrap';
-import { Trash, Upload, Download, Square, Triangle, Circle, Slash, Star, Type, ArrowsMove, ArrowClockwise, BoxArrowUpRight, Pencil } from 'react-bootstrap-icons';
+import { Button, Form, InputGroup, ButtonGroup, Row, Col, Collapse } from 'react-bootstrap';
+import { Trash, Upload, Download, Square, Triangle, Circle, Slash, Star, ArrowsMove, Gear, Pencil } from 'react-bootstrap-icons';
 import { connect } from 'react-redux';
 import { getSettings } from '../settings/selector';
 import { settingsNow } from '../../../sockets/sCallbacks';
 import { updateAllSettings } from '../settings/Settings.slice';
-import { getTableConfig, getCanvasDisplaySize, getCornerCoordinates, formatCoordinate } from '../../../utils/tableConfig';
-import { generateGCode, uploadGCode, downloadGCode, CoordinateType } from '../../../utils/gcodeGenerator';
+import { getTableConfig, getCanvasDisplaySize } from '../../../utils/tableConfig';
+import { generateGCode, uploadGCode, CoordinateType } from '../../../utils/gcodeGenerator';
 
 import { generateSquare, generateTriangle, generateCircle, generateLine, generateStar } from '../../../utils/ShapeGenerator';
 import { getTextPoints } from '../../../utils/SimpleVectorFont';
@@ -46,7 +46,8 @@ class Canvas extends Component {
 
             drawingName: "",
             textInput: "HELLO",
-            maxDisplaySize: 600
+            maxDisplaySize: 600,
+            showSettings: false
         };
         // Internal resolution for better precision
         this.internalSize = 1000;
@@ -65,11 +66,14 @@ class Canvas extends Component {
             const viewportWidth = window.innerWidth;
             const isMobile = viewportWidth < 992;
 
-            // Available space calculation
-            // Sidebar is 320px on desktop
-            const sidebarWidth = isMobile ? 0 : 480;
-            const availableWidth = viewportWidth - sidebarWidth - 40; // 40px margin
-            const availableHeight = viewportHeight - 100; // Header offset
+            // Account for top nav (70) + header (80)
+            const headerHeight = 150;
+            const padding = 40;
+            // Leave room for inline settings panel height
+            const extraSpace = this.state.showSettings ? 340 : 120; // 120 for nametext
+
+            const availableWidth = viewportWidth - 40; // 40px margin
+            const availableHeight = viewportHeight - headerHeight - padding - extraSpace;
 
             const maxSize = Math.min(availableWidth, availableHeight, 900);
             this.setState({ maxDisplaySize: Math.max(300, maxSize) });
@@ -92,6 +96,13 @@ class Canvas extends Component {
 
     componentWillUnmount() {
         window.removeEventListener('resize', this.handleResize);
+    }
+
+    componentDidUpdate(prevProps, prevState) {
+        if (prevState.showSettings !== this.state.showSettings) {
+            // Delay slightly to let the collapse transition finish before resizing canvas
+            setTimeout(this.handleResize, 350);
+        }
     }
 
     // --- Helper Methods ---
@@ -356,9 +367,6 @@ class Canvas extends Component {
         const scaleX = element.x + cornerDist * Math.cos(cornerAngle);
         const scaleY = element.y + cornerDist * Math.sin(cornerAngle);
 
-        // Debug
-        console.log('CheckHandles', { x, y, rotX, rotY, scaleX, scaleY });
-
         if (Math.hypot(x - scaleX, y - scaleY) < 60) return 'scale';
 
         return null;
@@ -518,10 +526,7 @@ class Canvas extends Component {
         }
     }
 
-    handleDownload = () => {
-        const gcode = this.handleGenerateGCode();
-        downloadGCode(gcode, this.state.drawingName || `canvas_${Date.now()}`);
-    }
+
 
     render() {
         if (!this.props.settings || !this.props.settings.device) {
@@ -529,126 +534,67 @@ class Canvas extends Component {
         }
 
         const config = getTableConfig(this.props.settings);
-        const { maxDisplaySize, drawingName, textInput } = this.state;
+        const { maxDisplaySize, drawingName, textInput, showSettings, interactionMode } = this.state;
 
         const displaySize = getCanvasDisplaySize(config, {
             maxWidth: maxDisplaySize,
             maxHeight: maxDisplaySize
         });
-        const corners = getCornerCoordinates(config);
 
         return (
             <div className="canvas-layout">
-                {/* Sidebar */}
-                <div className="canvas-sidebar">
-                    <div className="canvas-sidebar-header">
-                        <h2>Canvas Tools</h2>
-                    </div>
-
-                    <div className="canvas-sidebar-content">
-                        <p className="text-muted small mb-3">
-                            Add shapes, drag to move. Click handles to rotate/scale.
-                        </p>
-
-                        <div className="mb-4">
-                            <label className="form-label text-white small">Tools</label>
-                            <ButtonGroup className="w-100 mb-3">
-                                <Button
-                                    variant={this.state.interactionMode === 'select' ? 'info' : 'outline-light'}
-                                    onClick={() => this.setState({ interactionMode: 'select' })}
-                                    title="Select / Move"
-                                >
-                                    <ArrowsMove className="mr-2" /> Select
-                                </Button>
-                                <Button
-                                    variant={this.state.interactionMode === 'freehand' ? 'info' : 'outline-light'}
-                                    onClick={() => this.setState({ interactionMode: 'freehand', selectedId: null })}
-                                    title="Freehand Drawing"
-                                >
-                                    <Pencil className="mr-2" /> Freehand
-                                </Button>
-                            </ButtonGroup>
-
-                            <label className="form-label text-white small">Add Shape</label>
-                            <div className="d-grid gap-2">
-                                <ButtonGroup className="w-100 mb-2">
-                                    <Button variant="outline-light" onClick={() => this.addElement('square')} title="Square"><Square /></Button>
-                                    <Button variant="outline-light" onClick={() => this.addElement('circle')} title="Circle"><Circle /></Button>
-                                    <Button variant="outline-light" onClick={() => this.addElement('triangle')} title="Triangle"><Triangle /></Button>
-                                </ButtonGroup>
-                                <ButtonGroup className="w-100">
-                                    <Button variant="outline-light" onClick={() => this.addElement('line')} title="Line"><Slash /></Button>
-                                    <Button variant="outline-light" onClick={() => this.addElement('star')} title="Star"><Star /></Button>
-                                </ButtonGroup>
-                            </div>
-                        </div>
-
-                        <div className="mb-4">
-                            <label className="form-label text-white small">Add Single-Line Text</label>
-                            <Form.Control
-                                type="text"
-                                className="bg-secondary text-white border-secondary mb-2"
-                                value={textInput}
-                                placeholder="Enter text (A-Z, 0-9)"
-                                onChange={(e) => this.setState({ textInput: e.target.value.toUpperCase() })}
-                            />
+                {/* Header Controls */}
+                <div className="canvas-header">
+                    <h4 className="mb-0">✏️ Canvas Tool</h4>
+                    <div className="canvas-controls">
+                        {/* Action Tools */}
+                        <ButtonGroup className="mr-2 tool-group">
                             <Button
-                                variant="info"
-                                size="sm"
-                                className="w-100"
-                                onClick={() => this.addElement('text')}
+                                variant={interactionMode === 'select' ? 'info' : 'outline-light'}
+                                onClick={() => this.setState({ interactionMode: 'select' })}
+                                title="Select & Move Objects"
                             >
-                                Add Text to Canvas
+                                <ArrowsMove />
                             </Button>
-                            <small className="text-muted d-block mt-1">Stick font style</small>
-                        </div>
+                            <Button
+                                variant={interactionMode === 'freehand' ? 'info' : 'outline-light'}
+                                onClick={() => this.setState({ interactionMode: 'freehand', selectedId: null })}
+                                title="Freehand Drawing Mode"
+                            >
+                                <Pencil />
+                            </Button>
+                        </ButtonGroup>
 
-                        <div className="mb-4 pt-3 border-top border-secondary">
-                            {this.state.selectedId !== null ? (
-                                <Button variant="danger" block onClick={this.deleteSelected}>
-                                    <Trash className="mr-2" /> Delete Selected
-                                </Button>
-                            ) : (
-                                <div className="text-muted small text-center">Select an item to edit</div>
-                            )}
-                        </div>
+                        {/* Shape Tools */}
+                        <ButtonGroup className="mr-2 tool-group">
+                            <Button variant="outline-light" onClick={() => this.addElement('square')} title="Add Square"><Square /></Button>
+                            <Button variant="outline-light" onClick={() => this.addElement('circle')} title="Add Circle"><Circle /></Button>
+                            <Button variant="outline-light" onClick={() => this.addElement('triangle')} title="Add Triangle"><Triangle /></Button>
+                            <Button variant="outline-light" onClick={() => this.addElement('line')} title="Add Straight Line"><Slash /></Button>
+                            <Button variant="outline-light" onClick={() => this.addElement('star')} title="Add Star"><Star /></Button>
+                        </ButtonGroup>
 
-                        <div className="mb-3 mt-auto pt-3 border-top border-secondary">
-                            <label className="form-label text-white small">File Name</label>
-                            <InputGroup size="sm">
-                                <Form.Control
-                                    type="text"
-                                    placeholder="Enter name..."
-                                    value={drawingName}
-                                    onChange={(e) => this.setState({ drawingName: e.target.value })}
-                                    className="bg-secondary text-white border-secondary"
-                                />
-                            </InputGroup>
-                        </div>
+                        <Button
+                            variant={showSettings ? "primary" : "outline-secondary"}
+                            size="sm"
+                            onClick={() => this.setState({ showSettings: !showSettings })}
+                            title="Toggle Text and settings menu"
+                        >
+                            <Gear />
+                        </Button>
 
-                        <div className="d-grid gap-2">
-                            <Button variant="success" onClick={this.sendToTable} className="mb-2">
-                                <Upload className="mr-2" /> Send to Table
-                            </Button>
-                            <Button variant="info" onClick={this.handleDownload} className="mb-2">
-                                <Download className="mr-2" /> Download G-Code
-                            </Button>
-                            <Button variant="outline-danger" size="sm" onClick={this.clearCanvas}>
-                                Clear All
-                            </Button>
-                        </div>
+                        <Button variant="outline-success" size="sm" onClick={this.sendToTable} title="Send directly to Sandtable" disabled={this.state.elements.length === 0}>
+                            <Upload />
+                        </Button>
                     </div>
                 </div>
 
-                {/* Main Content */}
+                {/* Main Content Area */}
                 <div className="canvas-main-content">
-                    <div className="canvas-wrapper">
-                        {/* Corner Labels */}
-                        <div className="corner-label top-left">{formatCoordinate(corners.topLeft)}</div>
-                        <div className="corner-label top-right">{formatCoordinate(corners.topRight)}</div>
-                        <div className="corner-label bottom-left">{formatCoordinate(corners.bottomLeft)}</div>
-                        <div className="corner-label bottom-right">{formatCoordinate(corners.bottomRight)}</div>
-
+                    <div className="canvas-wrapper mb-3" style={{
+                        width: Math.min(displaySize.width, displaySize.height),
+                        height: Math.min(displaySize.width, displaySize.height)
+                    }}>
                         <canvas
                             ref={this.canvasRef}
                             width={this.internalSize}
@@ -660,14 +606,75 @@ class Canvas extends Component {
                                 backgroundColor: 'white',
                                 touchAction: 'none',
                                 cursor: this.state.interactionMode === 'freehand' ? 'crosshair' : (this.state.isDragging ? 'grabbing' : 'grab'),
-                                width: displaySize.width,
-                                height: displaySize.height,
+                                width: '100%',
+                                height: '100%',
                             }}
                             onMouseDown={this.handleMouseDown}
                             // Mouse move/up are handled by document listener for drag
                             onTouchStart={this.handleMouseDown}
                         />
                     </div>
+
+                    <p className="text-muted text-center small mb-3">
+                        {interactionMode === 'freehand'
+                            ? "Drag anywhere on canvas to draw freely."
+                            : "Select items to drag them. Click handles to scale and rotate."}
+                    </p>
+
+                    {/* Name Input Row */}
+                    <div className="w-100 d-flex justify-content-center mt-2" style={{ maxWidth: '400px', margin: '0 auto' }}>
+                        <InputGroup size="sm">
+                            <InputGroup.Prepend>
+                                <InputGroup.Text className="bg-dark text-white border-secondary">Name</InputGroup.Text>
+                            </InputGroup.Prepend>
+                            <Form.Control
+                                type="text"
+                                placeholder={`canvas_${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                                value={drawingName}
+                                onChange={(e) => this.setState({ drawingName: e.target.value })}
+                                className="bg-dark text-white border-secondary"
+                            />
+                        </InputGroup>
+                    </div>
+
+                    {/* Settings Panel Inline */}
+                    <Collapse in={showSettings}>
+                        <div className="canvas-inline-settings w-100 mt-4 p-3 bg-dark rounded border border-secondary" style={{ maxWidth: '600px', margin: '0 auto' }}>
+                            <Row>
+                                <Col md={8}>
+                                    <Form.Label className="small text-muted mb-1">Add Single-Line Text</Form.Label>
+                                    <InputGroup size="sm">
+                                        <Form.Control
+                                            type="text"
+                                            className="bg-secondary text-white border-secondary"
+                                            value={textInput}
+                                            placeholder="Enter text (A-Z, 0-9)"
+                                            onChange={(e) => this.setState({ textInput: e.target.value.toUpperCase() })}
+                                        />
+                                        <InputGroup.Append>
+                                            <Button
+                                                variant="info"
+                                                onClick={() => this.addElement('text')}
+                                            >
+                                                Add to Canvas
+                                            </Button>
+                                        </InputGroup.Append>
+                                    </InputGroup>
+                                    <small className="text-muted d-block mt-1">Generates single-line stick font perfect for drawing</small>
+                                </Col>
+                                <Col md={4} className="d-flex flex-column justify-content-end border-left border-secondary">
+                                    {this.state.selectedId !== null && (
+                                        <Button variant="danger" size="sm" className="mb-2 w-100" onClick={this.deleteSelected}>
+                                            <Trash className="mr-1" /> Delete Selected
+                                        </Button>
+                                    )}
+                                    <Button variant="outline-danger" size="sm" className="w-100" onClick={this.clearCanvas} disabled={this.state.elements.length === 0}>
+                                        <Trash className="mr-1" /> Clear Canvas
+                                    </Button>
+                                </Col>
+                            </Row>
+                        </div>
+                    </Collapse>
                 </div>
             </div>
         );

@@ -42,7 +42,7 @@ services:
       - /sbin/shutdown:/sbin/shutdown # necessary to shutdown the device
       - /sbin/reboot:/sbin/reboot # necessary to reboot the device
     ports:
-      - 5100:5000
+      - 80:5000
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
       - "com.centurylinklabs.watchtower.lifecycle.pre-update=/sandypi/check_pre_update.sh"

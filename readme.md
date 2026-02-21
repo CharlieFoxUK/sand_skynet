@@ -61,7 +61,7 @@ Should be compatible with other firmwares as well. If not please open an issue.
 
 The software is running in Docker. The images are compatible with armv7 (Raspberry Pi) and amd64 (Linux and Windows with wsl).
 
-Once the software is correctly installed it is necessary to select the correct firmware used on the sandtable. This can be done through the web interface in the settings page. The interface can be reached through any browser by using the ip address of the device follower by `:5100` like `ip_address:5100`.
+Once the software is correctly installed it is necessary to select the correct firmware used on the sandtable. This can be done through the web interface in the settings page. The interface can be reached through any browser by using the ip address of the device like `http://ip_address`.
 
 ### Marlin 2.0 setup
 

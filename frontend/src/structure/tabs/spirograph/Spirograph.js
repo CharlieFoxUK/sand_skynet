@@ -1,10 +1,10 @@
 import React, { Component } from 'react';
-import { Button, Card, Form, ButtonGroup } from 'react-bootstrap';
-import { Play, Pause, ArrowRepeat, Upload, Download, Plus, Trash } from 'react-bootstrap-icons';
+import { Button, Card, Form, ButtonGroup, InputGroup, Collapse } from 'react-bootstrap';
+import { Play, Pause, ArrowRepeat, Upload, Plus, Trash, Gear } from 'react-bootstrap-icons';
 import { connect } from 'react-redux';
 import { getSettings } from '../settings/selector';
-import { getTableConfig, getCanvasDisplaySize, getCornerCoordinates, formatCoordinate } from '../../../utils/tableConfig';
-import { generateGCode, uploadGCode as uploadGCodeUtil, downloadGCode as downloadGCodeUtil, CoordinateType } from '../../../utils/gcodeGenerator';
+import { getTableConfig, getCanvasDisplaySize } from '../../../utils/tableConfig';
+import { generateGCode, uploadGCode as uploadGCodeUtil, CoordinateType } from '../../../utils/gcodeGenerator';
 import './Spirograph.scss';
 
 const mapStateToProps = (state) => ({
@@ -31,7 +31,10 @@ class Spirograph extends Component {
             showGears: true,
             lineColor: '#20c997',
             drawingName: '',
-            feedrate: 2000
+            feedrate: 2000,
+            showSettings: false,
+            isDragging: false,
+            lastPointerAngle: null
         };
 
         this.internalSize = 800;
@@ -44,9 +47,12 @@ class Spirograph extends Component {
         this.handleResize = () => {
             const viewportHeight = window.innerHeight;
             const viewportWidth = window.innerWidth;
-            const availableHeight = viewportHeight - 350;
-            const availableWidth = viewportWidth - 350;
-            const maxSize = Math.min(availableWidth, availableHeight, 800);
+            const headerHeight = 80;
+            const padding = 40;
+            const extraSpace = this.state.showSettings ? 380 : 100; // Leave more room for inline settings
+            const availableHeight = viewportHeight - headerHeight - padding - extraSpace;
+            const availableWidth = viewportWidth - 40;
+            const maxSize = Math.min(availableWidth, availableHeight, 900);
             this.setState({ maxDisplaySize: Math.max(300, maxSize) });
         };
         window.addEventListener('resize', this.handleResize);
@@ -237,7 +243,7 @@ class Spirograph extends Component {
     }
 
     animate = () => {
-        if (!this.state.isPlaying) return;
+        if (!this.state.isPlaying || this.state.isDragging) return;
 
         const { speed, fixedTeeth, movingTeeth } = this.state;
         const gcd = this.gcd(fixedTeeth, movingTeeth);
@@ -261,11 +267,96 @@ class Spirograph extends Component {
                 points: [...prevState.points, newPoint]
             };
         }, () => {
-            this.animationRef = requestAnimationFrame(this.animate);
+            if (this.state.isPlaying && !this.state.isDragging) {
+                this.animationRef = requestAnimationFrame(this.animate);
+            }
         });
     }
 
     gcd = (a, b) => b === 0 ? a : this.gcd(b, a % b);
+
+    // Pointer Events for Dragging
+    getPointerPos = (e) => {
+        const canvas = this.canvasRef.current;
+        if (!canvas) return null;
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        // Scale to internal size
+        const scaleX = this.internalSize / rect.width;
+        const scaleY = this.internalSize / rect.height;
+
+        return {
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top) * scaleY
+        };
+    }
+
+    handlePointerDown = (e) => {
+        // Only allow drag if not playing
+        if (this.state.isPlaying) return;
+
+        const pos = this.getPointerPos(e);
+        if (!pos) return;
+
+        // Calculate the angle of the pointer relative to the center of the canvas
+        const centerX = this.internalSize / 2;
+        const centerY = this.internalSize / 2;
+        const pointerAngle = Math.atan2(pos.y - centerY, pos.x - centerX);
+
+        if (this.animationRef) {
+            cancelAnimationFrame(this.animationRef);
+        }
+
+        this.setState({
+            isDragging: true,
+            lastPointerAngle: pointerAngle
+        });
+
+        e.preventDefault(); // Prevent scrolling on touch
+    }
+
+    handlePointerMove = (e) => {
+        if (!this.state.isDragging) return;
+
+        const pos = this.getPointerPos(e);
+        if (!pos) return;
+
+        const centerX = this.internalSize / 2;
+        const centerY = this.internalSize / 2;
+        const currentPointerAngle = Math.atan2(pos.y - centerY, pos.x - centerX);
+
+        this.setState(prevState => {
+            let { lastPointerAngle, currentAngle, fixedTeeth, movingTeeth, mode } = prevState;
+
+            // Calculate angle difference avoiding wrapping issues (-PI to PI)
+            let deltaAngle = currentPointerAngle - lastPointerAngle;
+            if (deltaAngle > Math.PI) deltaAngle -= 2 * Math.PI;
+            if (deltaAngle < -Math.PI) deltaAngle += 2 * Math.PI;
+
+            // The pointer angle represents the position of the *center* of the moving gear.
+            // The `currentAngle` parameter in our formulas usually correlates to that directly.
+            // When moving a gear around the inside, an increase in standard angle rotates it clockwise on the screen.
+            let newAngle = currentAngle + deltaAngle;
+
+            const newPoint = this.getSpirographPoint(newAngle);
+
+            return {
+                currentAngle: newAngle,
+                lastPointerAngle: currentPointerAngle,
+                points: [...prevState.points, newPoint]
+            };
+        });
+
+        e.preventDefault();
+    }
+
+    handlePointerUp = () => {
+        if (this.state.isDragging) {
+            this.setState({ isDragging: false, lastPointerAngle: null });
+        }
+    }
 
     togglePlay = () => {
         this.setState(prevState => {
@@ -281,24 +372,22 @@ class Spirograph extends Component {
         if (this.animationRef) {
             cancelAnimationFrame(this.animationRef);
         }
-        this.setState({
-            isPlaying: false,
-            currentAngle: 0,
-            points: []
+
+        this.setState(prevState => {
+            if (prevState.points.length > 1) {
+                return {
+                    layers: [...prevState.layers, { points: [...prevState.points], color: prevState.lineColor }],
+                    isPlaying: false,
+                    currentAngle: 0,
+                    points: []
+                };
+            }
+            return {
+                isPlaying: false,
+                currentAngle: 0,
+                points: []
+            };
         });
-    }
-
-    addLayer = () => {
-        const { points, lineColor } = this.state;
-        if (points.length === 0) return;
-
-        this.setState(prevState => ({
-            layers: [...prevState.layers, { points: [...points], color: lineColor }],
-            // Do NOT reset the gear parameters, just reset the drawing state so they can change settings for the next layer
-            points: [],
-            currentAngle: 0,
-            isPlaying: false
-        }));
     }
 
     clearLayers = () => {
@@ -319,18 +408,25 @@ class Spirograph extends Component {
         const rotationsNeeded = movingTeeth / gcd;
         const maxAngle = rotationsNeeded * 2 * Math.PI;
 
-        const points = [];
+        const newPoints = [];
         const steps = rotationsNeeded * 360;
 
         for (let i = 0; i <= steps; i++) {
             const angle = (i / steps) * maxAngle;
-            points.push(this.getSpirographPoint(angle));
+            newPoints.push(this.getSpirographPoint(angle));
         }
 
-        this.setState({
-            points,
-            currentAngle: maxAngle,
-            isPlaying: false
+        this.setState(prevState => {
+            let nextLayers = prevState.layers;
+            if (prevState.points.length > 1) {
+                nextLayers = [...nextLayers, { points: [...prevState.points], color: prevState.lineColor }];
+            }
+            return {
+                layers: nextLayers,
+                points: newPoints,
+                currentAngle: maxAngle,
+                isPlaying: false
+            };
         });
     }
 
@@ -383,19 +479,12 @@ class Spirograph extends Component {
         }
     }
 
-    handleDownload = () => {
-        const gcode = this.handleGenerateGCode();
-        if (!gcode) {
-            alert('Generate a pattern first!');
-            return;
-        }
-        downloadGCodeUtil(gcode, this.state.drawingName || `spirograph_${Date.now()}`);
-    }
+
 
     render() {
         const {
             maxDisplaySize, fixedTeeth, movingTeeth, penPosition, mode,
-            isPlaying, showGears, speed, lineColor, points
+            isPlaying, showGears, speed, lineColor, points, showSettings
         } = this.state;
 
         const config = getTableConfig(this.props.settings);
@@ -403,214 +492,230 @@ class Spirograph extends Component {
             maxWidth: maxDisplaySize,
             maxHeight: maxDisplaySize
         });
-        const corners = getCornerCoordinates(config);
 
         const gcd = this.gcd(fixedTeeth, movingTeeth);
         const petals = movingTeeth / gcd;
 
         return (
             <div className="spirograph-page">
-                <Card className="spirograph-settings bg-dark text-white">
-                    <Card.Header>
-                        <h5 className="mb-0">🎡 Spirograph</h5>
-                    </Card.Header>
-                    <Card.Body>
-                        <Form.Group className="mb-3">
-                            <Form.Label className="small">Mode</Form.Label>
-                            <ButtonGroup className="w-100">
-                                <Button
-                                    variant={mode === 'inside' ? 'info' : 'outline-secondary'}
-                                    size="sm"
-                                    onClick={() => { this.reset(); this.setState({ mode: 'inside' }); }}
-                                >
-                                    Inside (Ring)
-                                </Button>
-                                <Button
-                                    variant={mode === 'outside' ? 'info' : 'outline-secondary'}
-                                    size="sm"
-                                    onClick={() => { this.reset(); this.setState({ mode: 'outside' }); }}
-                                >
-                                    Outside
-                                </Button>
-                            </ButtonGroup>
-                        </Form.Group>
-
-                        <Form.Group className="mb-3">
-                            <Form.Label className="small">
-                                Fixed Gear Teeth: <strong>{fixedTeeth}</strong>
-                            </Form.Label>
-                            <Form.Control
-                                type="range"
-                                min={24}
-                                max={150}
-                                step={6}
-                                value={fixedTeeth}
-                                onChange={(e) => { this.reset(); this.setState({ fixedTeeth: parseInt(e.target.value) }); }}
-                            />
-                        </Form.Group>
-
-                        <Form.Group className="mb-3">
-                            <Form.Label className="small">
-                                Moving Gear Teeth: <strong>{movingTeeth}</strong>
-                            </Form.Label>
-                            <Form.Control
-                                type="range"
-                                min={12}
-                                max={135}
-                                step={3}
-                                value={movingTeeth}
-                                onChange={(e) => { this.reset(); this.setState({ movingTeeth: parseInt(e.target.value) }); }}
-                            />
-                        </Form.Group>
-
-                        <Form.Group className="mb-3">
-                            <Form.Label className="small">
-                                Pen Position: <strong>{(penPosition * 100).toFixed(0)}%</strong>
-                            </Form.Label>
-                            <Form.Control
-                                type="range"
-                                min={0.1}
-                                max={1.2}
-                                step={0.05}
-                                value={penPosition}
-                                onChange={(e) => { this.reset(); this.setState({ penPosition: parseFloat(e.target.value) }); }}
-                            />
-                            <small className="text-muted">
-                                0% = center, 100% = edge, &gt;100% = outside
-                            </small>
-                        </Form.Group>
-
-                        <Form.Group className="mb-3">
-                            <Form.Label className="small">Speed: {speed}x</Form.Label>
-                            <Form.Control
-                                type="range"
-                                min={0.5}
-                                max={10}
-                                step={0.5}
-                                value={speed}
-                                onChange={(e) => this.setState({ speed: parseFloat(e.target.value) })}
-                            />
-                        </Form.Group>
-
-                        <div className="mb-3 p-2 bg-secondary rounded small">
-                            <div>Pattern will have <strong>{petals}</strong> petals</div>
-                            <div className="text-muted">GCD: {gcd}, Ratio: {fixedTeeth}:{movingTeeth}</div>
-                        </div>
-
-                        <div className="d-flex gap-2 mb-3">
-                            <Button
-                                variant={isPlaying ? 'warning' : 'success'}
-                                onClick={this.togglePlay}
-                                className="flex-grow-1"
-                            >
-                                {isPlaying ? <><Pause /> Pause</> : <><Play /> Draw</>}
-                            </Button>
-                            <Button variant="outline-secondary" onClick={this.reset} title="Reset Parameters">
-                                <ArrowRepeat />
-                            </Button>
-                        </div>
-
+                {/* Header Controls */}
+                <div className="spirograph-header">
+                    <h4 className="mb-0">🎡 Spirograph</h4>
+                    <div className="spirograph-controls">
+                        <Button
+                            variant={isPlaying ? 'warning' : 'success'}
+                            onClick={this.togglePlay}
+                            size="sm"
+                            className="play-btn"
+                        >
+                            {isPlaying ? <><Pause /> Pause</> : <><Play /> Draw</>}
+                        </Button>
                         <Button
                             variant="outline-info"
-                            className="w-100 mb-3"
+                            size="sm"
                             onClick={this.generateComplete}
+                            title="Generate Instantly"
                         >
-                            Generate Instantly
+                            Generate
                         </Button>
 
-                        {/* Layer Controls */}
-                        <div className="d-flex gap-2 mb-3">
-                            <Button
-                                variant="outline-light"
-                                className="flex-grow-1"
-                                onClick={this.addLayer}
-                                disabled={points.length === 0}
-                                title="Add current pattern as a new layer"
-                            >
-                                <Plus /> Add Layer
-                            </Button>
+                        <Button variant={this.state.showSettings ? "primary" : "outline-secondary"} size="sm" onClick={() => {
+                            this.setState(prev => ({ showSettings: !prev.showSettings }), this.handleResize);
+                        }} title="Toggle Settings">
+                            <Gear />
+                        </Button>
 
-                            <Button
-                                variant="outline-danger"
-                                onClick={this.clearLayers}
-                                title="Clear All Layers"
-                            >
-                                <Trash />
-                            </Button>
-                        </div>
+                        <Button variant="outline-success" size="sm" onClick={this.sendToTable} disabled={this.state.layers.length === 0 && points.length === 0} title="Save to Drawings">
+                            <Upload />
+                        </Button>
+                        <Button variant="outline-danger" size="sm" onClick={this.clearLayers} title="Clear all layers">
+                            <Trash />
+                        </Button>
+                    </div>
+                </div>
 
-                        <Form.Group className="mb-3">
-                            <Form.Check
-                                type="checkbox"
-                                label="Show Gears"
-                                checked={showGears}
-                                onChange={(e) => this.setState({ showGears: e.target.checked })}
-                            />
-                        </Form.Group>
-
-                        <Form.Group className="mb-3">
-                            <Form.Label className="small">Line Color</Form.Label>
-                            <Form.Control
-                                type="color"
-                                value={lineColor}
-                                onChange={(e) => this.setState({ lineColor: e.target.value })}
-                                className="w-100"
-                            />
-                        </Form.Group>
-
-                        <hr className="border-secondary" />
-
-                        <Form.Group className="mb-2">
-                            <Form.Label className="small">Drawing Name</Form.Label>
-                            <Form.Control
-                                type="text"
-                                placeholder="my_spirograph"
-                                value={this.state.drawingName}
-                                onChange={(e) => this.setState({ drawingName: e.target.value })}
-                                className="bg-secondary text-white border-0"
-                                size="sm"
-                            />
-                        </Form.Group>
-
-                        <div className="d-grid gap-2">
-                            <Button variant="info" onClick={this.handleDownload}>
-                                <Download className="me-2" /> Download
-                            </Button>
-                            <Button variant="success" onClick={this.sendToTable}>
-                                <Upload className="me-2" /> Send to Table
-                            </Button>
-                        </div>
-                    </Card.Body>
-                </Card>
-
-                <div className="spirograph-canvas-area">
+                {/* Main Drawing Area */}
+                <div className="spirograph-canvas-wrapper">
                     <div className="canvas-container" style={{
                         width: Math.min(displaySize.width, displaySize.height),
                         height: Math.min(displaySize.width, displaySize.height),
-                        position: 'relative'
+                        position: 'relative',
+                        margin: '0 auto'
                     }}>
-                        {/* Corner coordinates */}
-                        <div className="corner-label top-left">{formatCoordinate(corners.topLeft)}</div>
-                        <div className="corner-label top-right">{formatCoordinate(corners.topRight)}</div>
-                        <div className="corner-label bottom-left">{formatCoordinate(corners.bottomLeft)}</div>
-                        <div className="corner-label bottom-right">{formatCoordinate(corners.bottomRight)}</div>
-
                         <canvas
                             ref={this.canvasRef}
                             width={this.internalSize}
                             height={this.internalSize}
+                            className="spirograph-canvas"
                             style={{
                                 width: '100%',
                                 height: '100%',
-                                borderRadius: '12px',
-                                border: '3px solid #20c997',
-                                boxShadow: '0 0 40px rgba(32, 201, 151, 0.2)'
+                                cursor: 'pointer',
+                                touchAction: 'none' // Prevent pull-to-refresh
                             }}
+                            onMouseDown={this.handlePointerDown}
+                            onMouseMove={this.handlePointerMove}
+                            onMouseUp={this.handlePointerUp}
+                            onMouseLeave={this.handlePointerUp}
+                            onTouchStart={this.handlePointerDown}
+                            onTouchMove={this.handlePointerMove}
+                            onTouchEnd={this.handlePointerUp}
+                            onTouchCancel={this.handlePointerUp}
                         />
                     </div>
-                    <p className="text-muted text-center mt-2 small">
-                        Adjust the gears and click "Draw" to animate. Click "Add Layer" to keep the pattern.
+
+                    <p className="text-muted text-center mt-2 small instruction-text">
+                        Drag the canvas to draw manually, or click "Draw" to animate. Drawings stack automatically when settings change.
                     </p>
+
+                    {/* Name Input Row */}
+                    <div className="w-100 d-flex justify-content-center mt-3" style={{ maxWidth: '400px', margin: '0 auto' }}>
+                        <InputGroup size="sm">
+                            <InputGroup.Prepend>
+                                <InputGroup.Text className="bg-dark text-white border-secondary">Name</InputGroup.Text>
+                            </InputGroup.Prepend>
+                            <Form.Control
+                                type="text"
+                                placeholder={`spirograph_${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                                value={this.state.drawingName}
+                                onChange={(e) => this.setState({ drawingName: e.target.value })}
+                                className="bg-dark text-white border-secondary"
+                            />
+                        </InputGroup>
+                    </div>
+                    {/* Settings Panel Inline */}
+                    <Collapse in={showSettings}>
+                        <div className="spirograph-inline-settings mt-3 p-3 bg-dark rounded border border-secondary text-left w-100" style={{ maxWidth: '800px', margin: '0 auto' }}>
+                            <div className="d-flex justify-content-between align-items-center border-bottom border-secondary pb-2 mb-3">
+                                <h6 className="text-info m-0">Settings</h6>
+                                <Button variant="outline-secondary" size="sm" onClick={this.reset} title="Reset Parameters to defaults" style={{ padding: '2px 8px', fontSize: '12px' }}>
+                                    <ArrowRepeat /> Reset Params
+                                </Button>
+                            </div>
+
+                            <div className="row">
+                                <div className="col-md-6 mb-3">
+                                    <Form.Group className="mb-3">
+                                        <Form.Label className="d-flex justify-content-between mb-1">
+                                            <span className="small text-muted">Fixed Gear Teeth</span>
+                                            <span className="text-primary font-weight-bold small">{fixedTeeth}</span>
+                                        </Form.Label>
+                                        <Form.Control
+                                            type="range"
+                                            min={24}
+                                            max={450}
+                                            step={6}
+                                            value={fixedTeeth}
+                                            onChange={(e) => { this.reset(); this.setState({ fixedTeeth: parseInt(e.target.value) }); }}
+                                            className="custom-range"
+                                        />
+                                    </Form.Group>
+
+                                    <Form.Group className="mb-3">
+                                        <Form.Label className="d-flex justify-content-between mb-1">
+                                            <span className="small text-muted">Moving Gear Teeth</span>
+                                            <span className="text-primary font-weight-bold small">{movingTeeth}</span>
+                                        </Form.Label>
+                                        <Form.Control
+                                            type="range"
+                                            min={12}
+                                            max={405}
+                                            step={3}
+                                            value={movingTeeth}
+                                            onChange={(e) => { this.reset(); this.setState({ movingTeeth: parseInt(e.target.value) }); }}
+                                            className="custom-range"
+                                        />
+                                    </Form.Group>
+
+                                    <div className="p-2 bg-secondary rounded small gear-info-box mt-4">
+                                        <div>Pattern will have <strong>{petals}</strong> petals</div>
+                                        <div className="text-muted">GCD: {gcd}, Ratio: {fixedTeeth}:{movingTeeth}</div>
+                                    </div>
+                                </div>
+
+                                <div className="col-md-6 mb-3">
+                                    <Form.Group className="mb-3">
+                                        <Form.Label className="d-flex justify-content-between mb-1">
+                                            <span className="small text-muted">Pen Position</span>
+                                            <span className="text-primary font-weight-bold small">{(penPosition * 100).toFixed(0)}%</span>
+                                        </Form.Label>
+                                        <Form.Control
+                                            type="range"
+                                            min={0.1}
+                                            max={1.2}
+                                            step={0.05}
+                                            value={penPosition}
+                                            onChange={(e) => { this.reset(); this.setState({ penPosition: parseFloat(e.target.value) }); }}
+                                            className="custom-range"
+                                        />
+                                        <small className="text-muted d-block mt-1" style={{ fontSize: '10px' }}>
+                                            0% = center, 100% = edge, &gt;100% = outside
+                                        </small>
+                                    </Form.Group>
+
+                                    <Form.Group className="mb-3">
+                                        <Form.Label className="d-flex justify-content-between mb-1">
+                                            <span className="small text-muted">Speed</span>
+                                            <span className="text-primary font-weight-bold small">{speed}x</span>
+                                        </Form.Label>
+                                        <Form.Control
+                                            type="range"
+                                            min={0.5}
+                                            max={10}
+                                            step={0.5}
+                                            value={speed}
+                                            onChange={(e) => this.setState({ speed: parseFloat(e.target.value) })}
+                                            className="custom-range"
+                                        />
+                                    </Form.Group>
+
+                                    <div className="d-flex w-100 justify-content-between mt-4">
+                                        <Form.Group className="mb-0 flex-grow-1 mr-2">
+                                            <Form.Label className="small text-muted mb-1 d-block">Mode</Form.Label>
+                                            <ButtonGroup className="w-100">
+                                                <Button
+                                                    variant={mode === 'inside' ? 'info' : 'outline-secondary'}
+                                                    size="sm"
+                                                    onClick={() => { this.reset(); this.setState({ mode: 'inside' }); }}
+                                                    style={{ padding: '2px 8px', fontSize: '12px' }}
+                                                >
+                                                    Inside
+                                                </Button>
+                                                <Button
+                                                    variant={mode === 'outside' ? 'info' : 'outline-secondary'}
+                                                    size="sm"
+                                                    onClick={() => { this.reset(); this.setState({ mode: 'outside' }); }}
+                                                    style={{ padding: '2px 8px', fontSize: '12px' }}
+                                                >
+                                                    Outside
+                                                </Button>
+                                            </ButtonGroup>
+                                        </Form.Group>
+
+                                        <div className="d-flex flex-column justify-content-between">
+                                            <Form.Check
+                                                type="switch"
+                                                id="show-gears-switch"
+                                                label={<span className="small">Gears</span>}
+                                                checked={showGears}
+                                                onChange={(e) => this.setState({ showGears: e.target.checked })}
+                                                className="custom-switch mb-1"
+                                            />
+                                            <div className="d-flex align-items-center">
+                                                <span className="small mr-2 text-muted">Color:</span>
+                                                <Form.Control
+                                                    type="color"
+                                                    value={lineColor}
+                                                    onChange={(e) => this.setState({ lineColor: e.target.value })}
+                                                    style={{ width: '30px', height: '24px', padding: '0', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </Collapse>
                 </div>
             </div>
         );

@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { connect } from 'react-redux';
 import { generateLayerPoints } from '../utils/geometry';
-import { getTableConfig, getCanvasDisplaySize, getCornerCoordinates, formatCoordinate } from '../../../../utils/tableConfig';
+import { getTableConfig, getCanvasDisplaySize } from '../../../../utils/tableConfig';
 
 const COLORS = ['#0dcaf0', '#20c997', '#ffc107', '#fd7e14', '#dc3545', '#6f42c1', '#d63384'];
 
@@ -10,33 +10,13 @@ const mapStateToProps = (state) => ({
     settings: state.settings
 });
 
-function PatternPreview({ layers, settings }) {
-    const [maxDisplaySize, setMaxDisplaySize] = useState(600);
-
-    // Calculate size based on available viewport
-    useEffect(() => {
-        const updateSize = () => {
-            const viewportWidth = window.innerWidth;
-            const viewportHeight = window.innerHeight;
-            const isMobile = viewportWidth < 992;
-            const availableWidth = isMobile ? viewportWidth - 40 : viewportWidth - 320 - 80;
-            const availableHeight = viewportHeight - 150;
-            const size = Math.min(availableWidth, availableHeight, 900);
-            setMaxDisplaySize(Math.max(300, size));
-        };
-
-        updateSize();
-        window.addEventListener('resize', updateSize);
-        return () => window.removeEventListener('resize', updateSize);
-    }, []);
-
+function PatternPreview({ layers, settings, maxDisplaySize = 600 }) {
     // Get table config and proper display size
     const config = getTableConfig(settings);
     const displaySize = getCanvasDisplaySize(config, {
         maxWidth: maxDisplaySize,
         maxHeight: maxDisplaySize
     });
-    const corners = getCornerCoordinates(config);
 
     // Generate points for all visible layers
     const layerPaths = useMemo(() => {
@@ -72,12 +52,6 @@ function PatternPreview({ layers, settings }) {
 
     return (
         <div className="pattern-preview-container">
-            {/* Corner coordinates */}
-            <div className="corner-label top-left">{formatCoordinate(corners.topLeft)}</div>
-            <div className="corner-label top-right">{formatCoordinate(corners.topRight)}</div>
-            <div className="corner-label bottom-left">{formatCoordinate(corners.bottomLeft)}</div>
-            <div className="corner-label bottom-right">{formatCoordinate(corners.bottomRight)}</div>
-
             <svg
                 viewBox="-1 -1 2 2"
                 preserveAspectRatio="none"

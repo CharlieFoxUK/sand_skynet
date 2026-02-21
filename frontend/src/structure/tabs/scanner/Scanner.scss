@@ -2,45 +2,73 @@
 .scanner-page {
     height: 100%;
     display: flex;
-    flex-direction: row;
-    overflow: hidden;
+    flex-direction: column; // Changed to column for header -> content layout
     background-color: #1a1a1a;
+    overflow: hidden;
 }
 
-.scanner-settings {
-    width: 350px;
-    height: 100%;
-    border-radius: 0 !important;
-    border-right: 1px solid #343a40;
+// Header toolbar
+.scanner-header {
     display: flex;
-    flex-direction: column;
-    overflow-y: auto;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background-color: #212529;
+    border-bottom: 1px solid #343a40;
     flex-shrink: 0;
+    height: 80px;
 
-    .card-body {
+    h4 {
+        color: #fff;
+        margin: 0;
+    }
+
+    .scanner-controls {
         display: flex;
-        flex-direction: column;
-        padding-bottom: 50px;
-        position: relative;
+        gap: 10px;
+        align-items: center;
+
+        .btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 500;
+        }
     }
 }
 
-.scanner-canvas-area {
-    flex-grow: 1;
-    height: 100%;
+// Main wrapping area
+.scanner-canvas-wrapper {
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    position: relative;
-    overflow: hidden;
+    justify-content: flex-start;
     padding: 20px;
+    overflow-y: auto; // Allow scrolling inside the wrapper if settings are open
+    position: relative;
+    width: 100%;
+
+    // Hide scrollbar but keep functionality
+    &::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    &::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    &::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
+    }
 
     /* CANVAS MODE */
     .canvas-container {
         position: relative;
         transition: width 0.3s ease, height 0.3s ease;
         z-index: 10;
+        flex-shrink: 0; // Prevent canvas from shrinking too much
 
         .corner-label {
             position: absolute;
@@ -84,41 +112,19 @@
 
     /* CAMERA MODE */
     .camera-fullscreen-container {
-        width: 100%;
-        height: 100%;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
+        position: relative;
+        flex-shrink: 0;
 
         .video-crop-window {
             position: relative;
-            width: 100%;
-            max-width: 600px;
-            aspect-ratio: 1 / 1; // Force square container for the preview area
-            overflow: hidden;
+            background: #000;
             border-radius: 12px;
             box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
-            background: #000;
-
-            video {
-                width: 100%;
-                height: 100%;
-                object-fit: cover;
-                /* Note: The 'transform' for zoom is applied inline in JS 
-                   to the video element. object-fit: cover ensures the video 
-                   fills the square box, cropping the edges by default. 
-                   The JS logic must account for this 'cover' cropping when 
-                   calculating what to draw! 
-                   
-                   Actually, usually video is 16:9 or 4:3.
-                   If we set container to square and object-fit: cover, CSS centers it.
-                */
-            }
-
-
-
-
+            overflow: hidden;
         }
 
         .capture-guide-overlay {
@@ -129,15 +135,7 @@
             bottom: 0;
             pointer-events: none;
             z-index: 10;
-
-            // Use a thick border as the "dimmer"
-            // OR box-shadow (inset) can't really do a "frame" easily if zoom changes.
-            // But wait, the video zooms INSIDE this box. 
-            // The box stays fixed size.
-            // So we just want a nice border to show "This is the image".
             border: 2px solid rgba(255, 255, 255, 0.5);
-
-            // Add a "grid" or crosshair?
             display: flex;
             align-items: center;
             justify-content: center;
@@ -146,29 +144,58 @@
                 width: 250px;
                 height: 250px;
                 border: 1px dashed rgba(255, 255, 255, 0.3);
-                border-radius: 50%; // Circle guide for spiral?
-                // Actually spiral fills the square.
+                border-radius: 50%;
             }
+        }
+    }
+
+    .instruction-text {
+        max-width: 600px;
+        margin: 0 auto;
+    }
+}
+
+// Inline Settings tweaks
+.scanner-inline-settings {
+    flex-shrink: 0; // Don't shrink the settings box
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
+    background-color: #2a2d31 !important; // Slightly lighter than pure dark
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-control {
+        background-color: #343a40 !important;
+        color: #fff !important;
+        border: 1px solid #495057 !important;
+
+        &:focus {
+            border-color: #20c997 !important;
+            box-shadow: 0 0 0 0.2rem rgba(32, 201, 151, 0.25) !important;
         }
     }
 }
 
-
 @media (max-width: 991px) {
-    .scanner-page {
+    .scanner-header {
         flex-direction: column;
-        overflow-y: auto;
+        align-items: stretch;
+        height: auto;
+        padding: 10px;
+
+        h4 {
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .scanner-controls {
+            flex-wrap: wrap;
+            justify-content: center;
+        }
     }
 
-    .scanner-settings {
-        width: 100%;
-        height: auto;
-        border-right: none;
-        border-bottom: 1px solid #343a40;
-    }
-
-    .scanner-canvas-area {
-        height: auto;
-        min-height: 500px;
+    .scanner-canvas-wrapper {
+        padding: 10px;
     }
 }

@@ -24,7 +24,7 @@ services:
       - /sbin/shutdown:/sbin/shutdown
       - /sbin/reboot:/sbin/reboot
     ports:
-      - 5100:5000
+      - 80:5000
     privileged: true
 
 volumes:

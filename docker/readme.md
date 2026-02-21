@@ -46,7 +46,7 @@ $> docker-compose down
 
 ## Using the software
 
-Now, from every device on the network should be possible to reach the software by putting the ip address of the device in any browser with this format: `ip_address:5100`. The `5100` is the default port for Sandypi. It is also possible to change it. See [Changing port](changing-port) for more detailed instructions.
+Now, from every device on the network should be possible to reach the software by putting the ip address of the device in any browser with this format: `http://ip_address` (since port 80 is the default web port). It is also possible to change it. See [Changing port](changing-port) for more detailed instructions.
 
 ## Software updates
 
@@ -142,7 +142,7 @@ sandypi:
 
 It is also possible to change the port used by the software (the number `xxxx` to put after the ip address [`ip_address:xxxx`]).
 Just change only the **first** number in the "ports" field inside the `docker-compose.yml` file.
-By using 80:5000 it will not be necessary to specify the port anymore but the software will be reachable simply by putting the device's ip address in the browser address bar (no need for the `xxxx` number at the end).
+The default port mapping is `80:5000` which maps the host port 80 to the container port 5000. If you wish to use a different port, such as 8080, change it to `8080:5000`.
 
 ***IMPORTANT:*** leave the number after the columns as 5000.
 

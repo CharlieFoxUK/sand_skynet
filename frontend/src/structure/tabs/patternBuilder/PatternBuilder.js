@@ -1,8 +1,8 @@
 import './PatternBuilder.scss';
 
 import React, { Component } from 'react';
-import { Card, Form, Button } from 'react-bootstrap';
-import { Upload, Download, ArrowRepeat } from 'react-bootstrap-icons';
+import { Card, Form, Button, Collapse, InputGroup } from 'react-bootstrap';
+import { Upload, ArrowRepeat, Gear } from 'react-bootstrap-icons';
 import { connect } from 'react-redux';
 
 import LayerPanel from './components/LayerPanel';
@@ -30,8 +30,45 @@ class PatternBuilder extends Component {
         super(props);
         this.state = {
             isSending: false,
-            sidebarCollapsed: false
+            showSettings: false,
+            maxDisplaySize: 600
         };
+    }
+
+    componentDidMount() {
+        this.handleResize();
+        window.addEventListener('resize', this.handleResize);
+    }
+
+    componentWillUnmount() {
+        window.removeEventListener('resize', this.handleResize);
+    }
+
+    handleResize = () => {
+        const viewportHeight = window.innerHeight;
+        const viewportWidth = window.innerWidth;
+
+        // Account for top nav (70) + header (80)
+        const headerHeight = 150;
+        const padding = 40;
+        // Leave room for inline settings if open
+        const extraSpace = this.state.showSettings ? 380 : 80;
+
+        const availableHeight = viewportHeight - headerHeight - padding - extraSpace;
+
+        // Mobile layout stacks settings
+        const isMobile = viewportWidth < 992;
+        const availableWidth = isMobile ? viewportWidth - 40 : viewportWidth - 40;
+
+        const maxSize = Math.min(availableWidth, availableHeight, 900);
+        this.setState({ maxDisplaySize: Math.max(300, maxSize) });
+    };
+
+    componentDidUpdate(prevProps, prevState) {
+        if (prevState.showSettings !== this.state.showSettings) {
+            // Delay slightly to let the collapse transition finish before resizing canvas
+            setTimeout(this.handleResize, 350);
+        }
     }
 
     getLayersWithPoints = () => {
@@ -63,107 +100,69 @@ class PatternBuilder extends Component {
         }
     }
 
-    handleDownload = () => {
-        const { layers, drawingName, settings } = this.props;
 
-        if (layers.filter(l => l.visible).length === 0) {
-            window.showToast?.('Add at least one visible layer to download');
-            return;
-        }
-
-        const layersWithPoints = this.getLayersWithPoints();
-        const gcode = generateGCode(layersWithPoints, settings, { feedrate: 2000 });
-
-        const blob = new Blob([gcode], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-
-        let filename = drawingName || `pattern_${Date.now()}`;
-        if (!filename.toLowerCase().endsWith('.gcode')) {
-            filename += '.gcode';
-        }
-
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
 
     render() {
         const { drawingName, setDrawingName, resetPattern } = this.props;
-        const { isSending } = this.state;
+        const { isSending, showSettings, maxDisplaySize } = this.state;
 
         return (
             <div className="pattern-builder-layout">
-                {/* Fixed Sidebar - hugs left edge */}
-                <div className="pb-sidebar">
-                    {/* Header */}
-                    <div className="pb-sidebar-header">
-                        <h5 className="text-white mb-0">Pattern Builder</h5>
+                {/* Header Controls */}
+                <div className="pb-header">
+                    <div className="d-flex align-items-center gap-3">
+                        <h4 className="mb-0">✨ Pattern Builder</h4>
                         <PatternBuilderHelp />
                     </div>
 
-                    {/* Scrollable content */}
-                    <div className="pb-sidebar-content">
-                        {/* Layers List */}
-                        <LayerPanel />
+                    <div className="pb-controls">
+                        <Button
+                            variant={showSettings ? "primary" : "outline-secondary"}
+                            size="sm"
+                            onClick={() => this.setState({ showSettings: !showSettings })}
+                            title="Toggle Settings"
+                        >
+                            <Gear /> {showSettings ? 'Hide Details' : 'Design Layers'}
+                        </Button>
 
-                        {/* Layer Settings */}
-                        <LayerSettings />
+                        <InputGroup size="sm" style={{ width: '200px' }}>
+                            <Form.Control
+                                type="text"
+                                placeholder="my_pattern"
+                                value={drawingName}
+                                onChange={(e) => setDrawingName(e.target.value)}
+                                className="bg-dark text-white border-secondary"
+                            />
+                        </InputGroup>
 
-                        {/* Export Controls */}
-                        <Card className="bg-dark text-white">
-                            <Card.Body className="p-2">
-                                <Form.Group className="mb-2">
-                                    <Form.Label className="small mb-1 text-muted">Drawing Name</Form.Label>
-                                    <Form.Control
-                                        type="text"
-                                        placeholder="my_pattern"
-                                        value={drawingName}
-                                        onChange={(e) => setDrawingName(e.target.value)}
-                                        className="bg-secondary text-white border-0"
-                                        size="sm"
-                                    />
-                                </Form.Group>
+                        <Button variant="outline-danger" size="sm" onClick={resetPattern} title="Reset">
+                            <ArrowRepeat />
+                        </Button>
 
-                                <div className="d-flex flex-wrap gap-1 mt-2">
-                                    <Button
-                                        variant="outline-secondary"
-                                        size="sm"
-                                        onClick={resetPattern}
-                                        title="Reset"
-                                    >
-                                        <ArrowRepeat />
-                                    </Button>
-                                    <Button
-                                        variant="info"
-                                        size="sm"
-                                        onClick={this.handleDownload}
-                                        className="flex-grow-1"
-                                    >
-                                        <Download className="me-1" /> Download
-                                    </Button>
-                                    <Button
-                                        variant="success"
-                                        size="sm"
-                                        onClick={this.handleSendToDrawings}
-                                        disabled={isSending}
-                                        className="w-100 mt-1"
-                                    >
-                                        <Upload className="me-1" />
-                                        {isSending ? 'Sending...' : 'Send to Drawings'}
-                                    </Button>
-                                </div>
-                            </Card.Body>
-                        </Card>
+                        <Button variant="success" size="sm" onClick={this.handleSendToDrawings} disabled={isSending}>
+                            <Upload /> {isSending ? 'Sending...' : 'Send'}
+                        </Button>
                     </div>
                 </div>
 
-                {/* Main Content Area - Canvas centered */}
-                <div className="pb-main-content">
-                    <PatternPreview />
+                {/* Main Content Area */}
+                <div className="pb-canvas-wrapper d-flex flex-column" style={{ flex: 1 }}>
+                    <div className="d-flex justify-content-center w-100 mb-3" style={{ flex: '1 1 auto', position: 'relative' }}>
+                        <PatternPreview maxDisplaySize={maxDisplaySize} />
+                    </div>
+
+                    {/* Inline Settings Panel */}
+                    <Collapse in={showSettings}>
+                        <div className="pb-inline-settings w-100">
+                            <div className="pb-settings-content">
+                                {/* Layers List */}
+                                <LayerPanel />
+
+                                {/* Layer Settings */}
+                                <LayerSettings />
+                            </div>
+                        </div>
+                    </Collapse>
                 </div>
             </div>
         );
