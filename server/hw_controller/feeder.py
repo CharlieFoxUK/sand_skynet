@@ -113,6 +113,7 @@ class Feeder():
         self.line_number = 0
         self._timeout_last_line = self.line_number
         self.feedrate = 0
+        self.max_drawing_feedrate = 2000  # Max feedrate for drawings (mm/min), 0 = no limit
         self.last_commanded_position = DotMap({"x":0, "y":0})
 
         # commands parser
@@ -235,17 +236,49 @@ class Feeder():
                     self.logger.info("Stopping drawing")
                 self._is_running = False
                 self._current_element = None
+            
+            # Release command_send_mutex if locked so the drawing thread can unblock and exit
+            if self.command_send_mutex.locked():
+                try:
+                    self.command_send_mutex.release()
+                except:
+                    pass
+
             # block the function until the thread is stopped otherwise the thread may still be running when the new thread is started 
             # (_isrunning will turn True and the old thread will keep going)
             while True:
                 with self.status_mutex:
                     if self._stopped:
                         break
+                time.sleep(0.05)
+
+            # Now that the thread has stopped, flush GRBL's planner to clear any buffered commands
+            if firmware.is_grbl(self._firmware):
+                try:
+                    with self.serial_mutex:
+                        self.serial.send("!")       # Feed hold — stops motion immediately
+                    time.sleep(0.5)
+                    with self.serial_mutex:
+                        self.serial.send("\x85")    # Queue flush — clears planner buffer
+                    time.sleep(0.5)
+                    with self.serial_mutex:
+                        self.serial.send("~")       # Cycle start — return to idle
+                    self.logger.info("Sent GRBL feed hold + queue flush")
+                    # Clear internal command buffer since GRBL dropped everything
+                    with self.command_buffer_mutex:
+                        self.command_buffer.clear()
+                    if self.command_send_mutex.locked():
+                        try:
+                            self.command_send_mutex.release()
+                        except:
+                            pass
+                except Exception as e:
+                    self.logger.error(f"Error sending feed hold: {e}")
 
             # waiting command buffer to be clear before calling the "drawing ended" event
             while True:
                 self.send_gcode_command(firmware.get_buffer_command(self._firmware), hide_command=True) 
-                time.sleep(3)                                               # wait 3 second to get the time to the board to answer. If the time here is reduced too much will fill the buffer history with buffer_commands and may loose the needed line in a resend command for marlin
+                time.sleep(0.5)
                 # the "buffer_command" will raise a response from the board that will be handled by the parser to empty the buffer
 
                 # wait until the buffer is empty to know that the job is done
@@ -300,7 +333,18 @@ class Feeder():
         try:
             if any(code in command for code in BUFFERED_COMMANDS):
                 if "F" in command:
-                    self.feedrate = float(self.feed_regex.findall(command)[0][0])
+                    parsed_feed = float(self.feed_regex.findall(command)[0][0])
+                    # Clamp feedrate when running a drawing (not live mode commands)
+                    if self._is_running and self.max_drawing_feedrate > 0 and parsed_feed > self.max_drawing_feedrate:
+                        self.logger.info(f"Clamping feedrate from {parsed_feed} to {self.max_drawing_feedrate}")
+                        command = self.feed_regex.sub("F{:.0f} ".format(self.max_drawing_feedrate), command, count=1)
+                        parsed_feed = self.max_drawing_feedrate
+                    self.feedrate = parsed_feed
+                elif self._is_running and self.max_drawing_feedrate > 0 and self.feedrate > self.max_drawing_feedrate:
+                    # No F in command but current feedrate exceeds cap — inject F to enforce the limit
+                    self.logger.info(f"Injecting F{self.max_drawing_feedrate} (current feedrate was {self.feedrate})")
+                    command = command.rstrip() + " F{:.0f}".format(self.max_drawing_feedrate)
+                    self.feedrate = self.max_drawing_feedrate
                 if "X" in command:
                     self.last_commanded_position.x = float(self.x_regex.findall(command)[0][0])
                 if "Y" in command:
@@ -508,6 +552,9 @@ class Feeder():
         
         # Process first line
         lines_to_process = [first_line]
+
+        # Log the current max drawing feedrate at start
+        self.logger.info(f"Drawing starting with max_drawing_feedrate={self.max_drawing_feedrate}")
         
         # Helper to process lines
         def process_line(line):
@@ -528,6 +575,20 @@ class Feeder():
                 line = line.split("(")[0].strip()
             
             if not line: return
+
+            # Enforce max drawing feedrate before sending
+            line_upper = line.upper()
+            if self.max_drawing_feedrate > 0 and "F" in line_upper:
+                try:
+                    f_matches = self.feed_regex.findall(line_upper)
+                    if f_matches:
+                        current_f = float(f_matches[0][0])
+                        if current_f > self.max_drawing_feedrate:
+                            self.logger.info(f"[process_line] Clamping F{current_f} -> F{self.max_drawing_feedrate}")
+                            line_upper = self.feed_regex.sub("F{:.0f} ".format(self.max_drawing_feedrate), line_upper, count=1)
+                            line = line_upper
+                except Exception as e:
+                    self.logger.error(f"Error clamping feedrate in process_line: {e}")
 
             # Send raw line
             self.send_gcode_command(line.upper())

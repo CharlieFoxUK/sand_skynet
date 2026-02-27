@@ -132,6 +132,20 @@ function queueStartRandom() {
     socket.emit("queue_start_random");
 }
 
+// ---- LIVE MODE ----
+
+function liveModeStart() {
+    socket.emit("live_mode_start");
+}
+
+function liveModeStop() {
+    socket.emit("live_mode_stop");
+}
+
+function setMaxDrawingFeedrate(value) {
+    socket.emit("set_max_drawing_feedrate", value);
+}
+
 // ---- MANUAL CONTROL ----
 
 function controlEmergencyStop() {
@@ -160,6 +174,9 @@ export {
     drawingResume,
     ledsSetColor,
     ledsAutoDim,
+    liveModeStart,
+    liveModeStop,
+    setMaxDrawingFeedrate,
     playlistsRequest,
     playlistDelete,
     playlistQueue,

@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { Container, Form, Col, Button, Row, Card, Accordion } from 'react-bootstrap';
-import { PlusSquare, Save, Trash, Joystick, Lightbulb, Gear, PlayFill, Cpu } from 'react-bootstrap-icons';
+import { PlusSquare, Save, Trash, Joystick, Lightbulb, Gear, PlayFill, Cpu, Speedometer2 } from 'react-bootstrap-icons';
 import { connect } from 'react-redux';
 
 import { Section, Subsection, SectionGroup } from '../../../components/Section';
@@ -10,7 +10,7 @@ import { getSettings } from "./selector.js";
 import { createNewHWButton, removeHWButton, updateAllSettings, updateSetting } from "./Settings.slice.js";
 
 import { settingsNow } from '../../../sockets/sCallbacks';
-import { settingsSave } from '../../../sockets/sEmits';
+import { settingsSave, setMaxDrawingFeedrate } from '../../../sockets/sEmits';
 import { cloneDict } from '../../../utils/dictUtils';
 import SettingField from './SettingField';
 import SoftwareVersion from './SoftwareVersion';
@@ -44,6 +44,12 @@ class Settings extends Component {
         });
         this.checkStatus();
         this.statusInterval = setInterval(() => this.checkStatus(), 5000);
+
+        // Initialize drawing speed from localStorage
+        const savedSpeed = localStorage.getItem('maxDrawingFeedrate');
+        const speed = savedSpeed ? parseInt(savedSpeed, 10) : 2000;
+        this.setState({ maxDrawingFeedrate: speed });
+        setMaxDrawingFeedrate(speed);
     }
 
     saveForm(connect = false) {
@@ -416,6 +422,61 @@ class Settings extends Component {
                                 <Accordion.Collapse eventKey="grbl-params">
                                     <Card.Body className="bg-secondary p-0">
                                         <GrblSettings />
+                                    </Card.Body>
+                                </Accordion.Collapse>
+                            </Card>
+                        </Accordion>
+                    </Subsection>
+
+                    {/* Drawing Speed Section */}
+                    <Subsection sectionTitle="Drawing Speed">
+                        <Accordion className="mb-4">
+                            <Card className="bg-dark border-secondary">
+                                <Card.Header className="bg-dark p-0 border-secondary">
+                                    <Accordion.Toggle
+                                        as={Button}
+                                        variant="link"
+                                        eventKey="drawing-speed"
+                                        className="w-100 text-left text-white text-decoration-none p-3 d-flex align-items-center"
+                                    >
+                                        <Speedometer2 className="mr-3" size={20} />
+                                        <span className="font-weight-bold">Max Drawing Speed</span>
+                                        <small className="ml-auto text-muted">
+                                            {this.state && this.state.maxDrawingFeedrate ? this.state.maxDrawingFeedrate : 2000} mm/min
+                                        </small>
+                                    </Accordion.Toggle>
+                                </Card.Header>
+                                <Accordion.Collapse eventKey="drawing-speed">
+                                    <Card.Body className="bg-secondary p-4">
+                                        <Container>
+                                            <Form.Group>
+                                                <Form.Label className="text-white d-flex justify-content-between">
+                                                    <span>Maximum feedrate for drawings</span>
+                                                    <span>{this.state && this.state.maxDrawingFeedrate ? this.state.maxDrawingFeedrate : 2000} mm/min</span>
+                                                </Form.Label>
+                                                <Form.Control
+                                                    type="range"
+                                                    min={100}
+                                                    max={2000}
+                                                    step={50}
+                                                    value={this.state && this.state.maxDrawingFeedrate ? this.state.maxDrawingFeedrate : 2000}
+                                                    onChange={(e) => {
+                                                        const val = parseInt(e.target.value, 10);
+                                                        this.setState({ maxDrawingFeedrate: val });
+                                                        localStorage.setItem('maxDrawingFeedrate', val);
+                                                        setMaxDrawingFeedrate(val);
+                                                    }}
+                                                    className="custom-range"
+                                                />
+                                                <div className="d-flex justify-content-between mt-1">
+                                                    <small className="text-muted">100 (slow)</small>
+                                                    <small className="text-muted">2000 (fast)</small>
+                                                </div>
+                                                <small className="text-muted mt-2 d-block">
+                                                    Limits the maximum speed for drawings played from the queue. Does not affect live mode.
+                                                </small>
+                                            </Form.Group>
+                                        </Container>
                                     </Card.Body>
                                 </Accordion.Collapse>
                             </Card>

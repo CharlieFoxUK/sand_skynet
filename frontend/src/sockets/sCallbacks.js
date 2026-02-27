@@ -10,90 +10,99 @@ const _checkInterval = 1000;
 let _connectionCb;
 let id;
 
+// Sync persistent settings to backend on every connection/reconnection
+socket.on('connect', () => {
+    const savedSpeed = localStorage.getItem('maxDrawingFeedrate');
+    if (savedSpeed) {
+        socket.emit('set_max_drawing_feedrate', parseInt(savedSpeed, 10));
+    }
+});
+
 
 // checks periodically if the connection is still available
-function _checkConnection(){
-    if (_lastChecked !== socket.connected){
+function _checkConnection() {
+    if (_lastChecked !== socket.connected) {
         _lastChecked = socket.connected;
         _connectionCb(_lastChecked);
     }
 }
 
 // set the callback and starts the check
-function connectionStatusCallback(cb){
+function connectionStatusCallback(cb) {
     if (id === undefined)   // starts the interval again only if not already running
         _connectionCb = cb;
-        id=setInterval(_checkConnection, _checkInterval);
+    id = setInterval(_checkConnection, _checkInterval);
 }
 
 /* ----- Sockets callbacks ----- */
 
 // ---- Drawings ----
-function drawingsRefreshResponse(cb){
+function drawingsRefreshResponse(cb) {
     socket.on("drawings_refresh_response", (val) => cb(val));
 }
 
 // ---- Playlists ----
-function playlistsRefreshResponse(cb){
+function playlistsRefreshResponse(cb) {
     socket.on("playlists_refresh_response", (val) => cb(val));
 }
 
-function playlistsRefreshSingleResponse(cb){
+function playlistsRefreshSingleResponse(cb) {
     socket.on("playlists_refresh_single_response", (val) => cb(val));
 }
 
-function playlistCreateId(cb){
+function playlistCreateId(cb) {
     socket.on("playlist_create_id", (id) => cb(id));
 }
 
 // ---- Queue ----
 
-function queueStatus(cb){
-    socket.on("queue_status", (val) => {cb(val)});
+function queueStatus(cb) {
+    socket.on("queue_status", (val) => { cb(val) });
 }
 
 // ---- Manual control ----
 
 // pass to the callback a command sent to the device from the backend
-function deviceCommandLineReturn(cb){
-    socket.on("command_line_show", (val) => {cb(val)});
+function deviceCommandLineReturn(cb) {
+    socket.on("command_line_show", (val) => { cb(val) });
 }
 
 // pass to the callback the device position
-function deviceNewPosition(cb){
-    socket.on("preview_new_position", (val) => {cb(val)});
+function deviceNewPosition(cb) {
+    socket.on("preview_new_position", (val) => { cb(val) });
 }
 
 // pass to the callback the leds values
-function deviceLeds(cb){
-    socket.on("preview_leds", (val) => {cb(val)});
+function deviceLeds(cb) {
+    socket.on("preview_leds", (val) => { cb(val) });
 }
 
 // ---- Settings ----
 
 // receive actual settings from server after sending a request.
 // use the callback to process the data received
-function settingsNow(cb){
-    socket.on("settings_now", (val) => {cb(val)});
+function settingsNow(cb) {
+    socket.on("settings_now", (val) => { cb(val) });
     socket.emit("settings_request");
 }
 
 // shows a toast message from the server side
-function showToast(cb){
-    socket.on("toast_show_message", (message) => {cb(message)});
+function showToast(cb) {
+    socket.on("toast_show_message", (message) => { cb(message) });
 }
 
 
 export {
-    socket, 
-    connectionStatusCallback, 
-    drawingsRefreshResponse, 
-    playlistsRefreshResponse, 
+    socket,
+    connectionStatusCallback,
+    drawingsRefreshResponse,
+    playlistsRefreshResponse,
     playlistsRefreshSingleResponse,
     playlistCreateId,
-    queueStatus, 
-    deviceCommandLineReturn, 
-    deviceNewPosition, 
-    deviceLeds, 
-    settingsNow, 
-    showToast};
+    queueStatus,
+    deviceCommandLineReturn,
+    deviceNewPosition,
+    deviceLeds,
+    settingsNow,
+    showToast
+};

@@ -125,6 +125,31 @@ def settings_request():
 def send_gcode_command(command):
     app.feeder.send_gcode_command(command)
 
+@socketio.on("live_mode_start")
+def live_mode_start():
+    """Stop any running drawing and pause queue for real-time live mode commands."""
+    if app.feeder.is_running():
+        app.qmanager.stop()
+    app.qmanager.pause()
+    app.semits.show_toast_on_UI("Live mode activated — queue paused")
+    app.logger.info("Live mode started")
+
+@socketio.on("live_mode_stop")
+def live_mode_stop():
+    """Exit live mode. Queue remains paused for manual restart."""
+    app.semits.show_toast_on_UI("Live mode off — resume queue manually")
+    app.logger.info("Live mode stopped")
+
+@socketio.on("set_max_drawing_feedrate")
+def set_max_drawing_feedrate(value):
+    """Set the maximum feedrate for drawings (mm/min). 0 = no limit."""
+    try:
+        val = int(value)
+        app.feeder.max_drawing_feedrate = val
+        app.logger.info(f"Max drawing feedrate set to {val}")
+    except Exception as e:
+        app.logger.error(f"Error setting max drawing feedrate: {e}")
+
 @socketio.on("settings_shutdown_system")
 def settings_shutdown_system():
     app.semits.show_toast_on_UI("Shutting down the device")

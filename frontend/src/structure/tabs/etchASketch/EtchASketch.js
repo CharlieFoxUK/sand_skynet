@@ -3,11 +3,16 @@ import { Form, Button, Modal, InputGroup } from 'react-bootstrap';
 import { Trash, Broadcast, Gear, Upload } from 'react-bootstrap-icons';
 import { useSelector } from 'react-redux';
 import RotaryDial from './RotaryDial';
-import { sendCommand } from '../../../sockets/sEmits';
+import { sendCommand, liveModeStart, liveModeStop } from '../../../sockets/sEmits';
 import { getTableConfig, getCanvasDisplaySize } from '../../../utils/tableConfig';
 import { generateGCode, uploadGCode, CoordinateType } from '../../../utils/gcodeGenerator';
 import { canvasToGcode } from '../../../utils/coordinateTransform';
 import './EtchASketch.scss';
+
+// localStorage keys for persisted live mode settings
+const LS_FEEDRATE = 'etchLiveModeFeedrate';
+const LS_INTERVAL = 'etchLiveModeInterval';
+const LS_DISTANCE_SCALE = 'etchLiveModeDistanceScale';
 
 /**
  * EtchASketch - A manual drawing interface with rotary dial controls
@@ -31,8 +36,42 @@ function EtchASketch() {
     const [cursorSize, setCursorSize] = useState(1);
     const [maxDisplaySize, setMaxDisplaySize] = useState(600);
 
+    // Live mode settings — persisted in localStorage
+    const [liveModeFeedrate, setLiveModeFeedrate] = useState(() => {
+        const saved = localStorage.getItem(LS_FEEDRATE);
+        return saved ? parseInt(saved, 10) : 5000;
+    });
+    const [liveModeInterval, setLiveModeInterval] = useState(() => {
+        const saved = localStorage.getItem(LS_INTERVAL);
+        return saved ? parseInt(saved, 10) : 250;
+    });
+    const [liveModeDistanceScale, setLiveModeDistanceScale] = useState(() => {
+        const saved = localStorage.getItem(LS_DISTANCE_SCALE);
+        return saved ? parseFloat(saved) : 0.05;
+    });
+
+    // Persist live mode settings when they change
+    useEffect(() => { localStorage.setItem(LS_FEEDRATE, liveModeFeedrate); }, [liveModeFeedrate]);
+    useEffect(() => { localStorage.setItem(LS_INTERVAL, liveModeInterval); }, [liveModeInterval]);
+    useEffect(() => { localStorage.setItem(LS_DISTANCE_SCALE, liveModeDistanceScale); }, [liveModeDistanceScale]);
+
+    // Refs for live mode streaming
+    const liveIntervalRef = useRef(null);
+    const lastSentPositionRef = useRef(null);
+    // Refs to hold latest values for the interval callback (avoids effect re-runs)
+    const configRef = useRef(null);
+    const liveModeFeedrateRef = useRef(liveModeFeedrate);
+    const liveModeIntervalRef = useRef(liveModeInterval);
+    const liveTrackRef = useRef(liveTrack);
+
     // Get table config from Redux
     const config = getTableConfig(settings);
+
+    // Keep refs in sync with state
+    configRef.current = config;
+    liveModeFeedrateRef.current = liveModeFeedrate;
+    liveModeIntervalRef.current = liveModeInterval;
+    liveTrackRef.current = liveTrack;
 
     // Store path history for redrawing
     const pathRef = useRef([{ x: 0.5, y: 0.5 }]);
@@ -162,14 +201,11 @@ function EtchASketch() {
         pathRef.current = [{ x: 0.5, y: 0.5 }];
 
         // Blur any focused dropdown toggles to prevent arrow keys from re-opening the menu
-        // This handles the case where user navigates to Etch-a-Sketch via the hamburger menu
-        // Use setTimeout to ensure this runs after any click events have fully completed
         const blurTimer = setTimeout(() => {
             const dropdownToggle = document.querySelector('#main-menu-dropdown');
             if (dropdownToggle) {
                 dropdownToggle.blur();
             }
-            // Also blur whatever is currently focused as a fallback
             if (document.activeElement && document.activeElement !== document.body) {
                 document.activeElement.blur();
             }
@@ -195,9 +231,10 @@ function EtchASketch() {
 
         // Update position
         setPosition(prev => {
-            // Calculate movement delta. 
-            // We use 0.1 scale factor to match previous RotaryDial 'output' logic.
-            const moveDelta = rotateDelta * 0.1 * resolution;
+            // Calculate movement delta.
+            // In live mode, scale distance by liveModeDistanceScale to slow cursor movement
+            const distScale = liveTrackRef.current ? liveModeDistanceScale : 1.0;
+            const moveDelta = rotateDelta * 0.1 * resolution * distScale;
 
             let newPos = { ...prev };
 
@@ -213,7 +250,7 @@ function EtchASketch() {
                 } else return prev;
             }
 
-            // Record path and send G-code
+            // Record path and generate G-code line
             if (pathRef.current.length === 0 ||
                 Math.abs(newPos.x - pathRef.current[pathRef.current.length - 1].x) > 0.0005 ||
                 Math.abs(newPos.y - pathRef.current[pathRef.current.length - 1].y) > 0.0005) {
@@ -221,18 +258,60 @@ function EtchASketch() {
                 pathRef.current.push(newPos);
 
                 // Generate G-code using proper transform
-                const gp = canvasToGcode(newPos.x, 1 - newPos.y, 1, 1, config);
-                const gcode = `G1 X${gp.x.toFixed(3)} Y${gp.y.toFixed(3)} F1000`;
+                const currentConfig = configRef.current;
+                const feedrate = liveTrackRef.current ? liveModeFeedrateRef.current : 1000;
+                const gp = canvasToGcode(newPos.x, 1 - newPos.y, 1, 1, currentConfig);
+                const gcode = `G1 X${gp.x.toFixed(3)} Y${gp.y.toFixed(3)} F${feedrate}`;
                 setGcodeLines(lines => [...lines, gcode]);
 
-                if (liveTrack) {
-                    sendCommand(gcode);
-                }
+                // In live mode, commands are sent via the interval timer at a controlled rate
+                // to avoid overwhelming GRBL with too many commands (error 24)
             }
 
             return newPos;
         });
-    }, [liveTrack, resolution, config]);
+    }, [resolution, liveModeDistanceScale]);
+
+    // Live mode streaming: send G-code at fixed intervals (handles straight lines)
+    // Only depends on liveTrack to start/stop — reads other values from refs
+    useEffect(() => {
+        if (liveTrack) {
+            // Signal backend to stop drawing & pause queue
+            liveModeStart();
+            lastSentPositionRef.current = null;
+
+            liveIntervalRef.current = setInterval(() => {
+                // Read current position from the latest path point
+                const path = pathRef.current;
+                if (path.length === 0) return;
+                const currentPos = path[path.length - 1];
+
+                // Always send the current position, even if unchanged
+                // This keeps the machine moving toward the target during straight lines
+                const currentConfig = configRef.current;
+                const feedrate = liveModeFeedrateRef.current;
+                const gp = canvasToGcode(currentPos.x, 1 - currentPos.y, 1, 1, currentConfig);
+                const gcode = `G1 X${gp.x.toFixed(3)} Y${gp.y.toFixed(3)} F${feedrate}`;
+                sendCommand(gcode);
+
+                lastSentPositionRef.current = { x: currentPos.x, y: currentPos.y };
+            }, liveModeIntervalRef.current);
+        } else {
+            // Clear interval when live mode is turned off
+            if (liveIntervalRef.current) {
+                clearInterval(liveIntervalRef.current);
+                liveIntervalRef.current = null;
+                liveModeStop();
+            }
+        }
+
+        return () => {
+            if (liveIntervalRef.current) {
+                clearInterval(liveIntervalRef.current);
+                liveIntervalRef.current = null;
+            }
+        };
+    }, [liveTrack]); // Only re-run when live mode is toggled
 
     // Keyboard handlers
     useEffect(() => {
@@ -246,11 +325,10 @@ function EtchASketch() {
             const dropdownOpen = document.querySelector('.dropdown-menu.show');
             if (dropdownOpen) return;
 
-            // If the dropdown toggle is focused, blur it immediately to prevent it from capturing arrow keys
+            // If the dropdown toggle is focused, blur it immediately
             const dropdownToggle = document.querySelector('#main-menu-dropdown');
             if (dropdownToggle && (document.activeElement === dropdownToggle || e.target === dropdownToggle)) {
                 dropdownToggle.blur();
-                // Also blur the general active element as fallback
                 if (document.activeElement && document.activeElement !== document.body) {
                     document.activeElement.blur();
                 }
@@ -282,7 +360,7 @@ function EtchASketch() {
             }
         };
 
-        window.addEventListener('keydown', handleKeyDown, true); // Use capture phase to run before Bootstrap
+        window.addEventListener('keydown', handleKeyDown, true);
         return () => window.removeEventListener('keydown', handleKeyDown, true);
     }, [handleDoMove]);
 
@@ -489,6 +567,73 @@ function EtchASketch() {
                             onChange={(e) => setCursorSize(parseFloat(e.target.value))}
                         />
                     </Form.Group>
+
+                    {/* Live Mode Settings */}
+                    <div className="border-top border-secondary pt-3 mt-3">
+                        <h6 className="text-success mb-3">
+                            <Broadcast className="mr-1" /> Live Mode Settings
+                        </h6>
+
+                        <Form.Group className="mb-3">
+                            <Form.Label className="d-flex justify-content-between">
+                                <span>Machine Speed (Feedrate)</span>
+                                <span className="text-muted">{liveModeFeedrate} mm/min</span>
+                            </Form.Label>
+                            <Form.Control
+                                type="range"
+                                min={500}
+                                max={10000}
+                                step={50}
+                                value={liveModeFeedrate}
+                                onChange={(e) => setLiveModeFeedrate(parseInt(e.target.value, 10))}
+                                className="custom-range"
+                            />
+                            <div className="d-flex justify-content-between mt-1">
+                                <small className="text-muted">500</small>
+                                <small className="text-muted">10000</small>
+                            </div>
+                        </Form.Group>
+
+                        <Form.Group className="mb-3">
+                            <Form.Label className="d-flex justify-content-between">
+                                <span>Dial Distance Scale</span>
+                                <span className="text-muted">{(liveModeDistanceScale * 100).toFixed(0)}% of normal</span>
+                            </Form.Label>
+                            <Form.Control
+                                type="range"
+                                min={0.01}
+                                max={0.10}
+                                step={0.01}
+                                value={liveModeDistanceScale}
+                                onChange={(e) => setLiveModeDistanceScale(parseFloat(e.target.value))}
+                                className="custom-range"
+                            />
+                            <div className="d-flex justify-content-between mt-1">
+                                <small className="text-muted">1%</small>
+                                <small className="text-muted">10%</small>
+                            </div>
+                        </Form.Group>
+
+                        <Form.Group className="mb-3">
+                            <Form.Label className="d-flex justify-content-between">
+                                <span>Send Interval</span>
+                                <span className="text-muted">{liveModeInterval}ms (~{Math.round(1000 / liveModeInterval)}/sec)</span>
+                            </Form.Label>
+                            <Form.Control
+                                type="range"
+                                min={100}
+                                max={1000}
+                                step={50}
+                                value={liveModeInterval}
+                                onChange={(e) => setLiveModeInterval(parseInt(e.target.value, 10))}
+                                className="custom-range"
+                            />
+                            <div className="d-flex justify-content-between mt-1">
+                                <small className="text-muted">100ms (fast)</small>
+                                <small className="text-muted">1000ms (slow)</small>
+                            </div>
+                        </Form.Group>
+                    </div>
 
                     <div className="border-top border-secondary pt-3 mt-3">
                         <h6 className="text-muted mb-2">Presets</h6>
